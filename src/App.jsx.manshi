@@ -1,0 +1,275 @@
+﻿import React, { useState, useEffect, useCallback } from 'react';
+import SideNav from './components/SideNav.jsx';
+import TopBar from './components/TopBar.jsx';
+import Globe3D from './components/Globe3D.jsx';
+import LeftPanel from './components/LeftPanel.jsx';
+import RightPanel from './components/RightPanel.jsx';
+import IncidentDrawer from './components/IncidentDrawer.jsx';
+import { StatusCluster, ParcelsCounter } from './components/GlobeOverlays.jsx';
+import useTrafficWebSocket from './services/websocket.js';
+import { INITIAL_INCIDENTS, INITIAL_TRAFFIC_HISTORY, TARGET_SERVER, STATS } from './mock/mockData.js';
+
+/* ΓöÇΓöÇΓöÇ Real view pages ΓöÇΓöÇΓöÇ */
+import DashboardView from './views/DashboardView.jsx';
+import TrafficView from './views/TrafficView.jsx';
+import SecurityView from './views/SecurityView.jsx';
+import AlertsView from './views/AlertsView.jsx';
+import SettingsView from './views/SettingsView.jsx';
+
+const App = () => {
+  const [trafficHistory, setTrafficHistory] = useState(INITIAL_TRAFFIC_HISTORY);
+  const [incidents] = useState(INITIAL_INCIDENTS);
+  const [peakRps, setPeakRps] = useState(0);
+  const [view3D, setView3D] = useState(true);
+  const [activeView, setActiveView] = useState('Global View');
+  const [searchedCity, setSearchedCity] = useState(null);
+  const globeRef = React.useRef(null);
+
+  const { lastJsonMessage, isConnected } = useTrafficWebSocket();
+
+  useEffect(() => {
+    if (!lastJsonMessage) return;
+    setTrafficHistory(prev => {
+      const next = [...prev, {
+        t: Date.now(),
+        rps: lastJsonMessage.current_rps ?? 0,
+        baseline: lastJsonMessage.baseline_rps ?? 20,
+        status: lastJsonMessage.status ?? 'NORMAL',
+      }].slice(-60);
+      return next;
+    });
+    if ((lastJsonMessage.current_rps ?? 0) > peakRps) {
+      setPeakRps(lastJsonMessage.current_rps ?? 0);
+    }
+  }, [lastJsonMessage]);
+
+  const status = lastJsonMessage?.status ?? 'NORMAL';
+  const currentRps = lastJsonMessage?.current_rps ?? 0;
+  const isAnomaly = status === 'ANOMALY';
+
+  /* ΓöÇΓöÇΓöÇ Render the active view ΓöÇΓöÇΓöÇ */
+  const renderView = () => {
+    switch (activeView) {
+      case 'Dashboard':
+        return <DashboardView />;
+      case 'Traffic':
+        return <TrafficView />;
+      case 'Security':
+        return <SecurityView />;
+      case 'Alerts':
+        return <AlertsView />;
+      case 'Settings':
+        return <SettingsView />;
+      case 'Global View':
+      case 'Map':
+      default:
+        return null;
+    }
+  };
+
+  const isGlobeView = activeView === 'Global View' || activeView === 'Map';
+
+  return (
+    <div
+      style={{
+        height: '100vh',
+        width: '100vw',
+        display: 'flex',
+        flexDirection: 'column',
+        background: '#eef2ff',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Top bar */}
+      <TopBar 
+        status={status} 
+        isConnected={isConnected} 
+        activeView={activeView}
+        onSearch={(city) => {
+          setSearchedCity(city);
+          if (!isGlobeView) {
+            setActiveView('Global View');
+          }
+        }} 
+      />
+
+      {/* Main content */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+
+        {/* Left icon nav */}
+        <SideNav activeView={activeView} setActiveView={setActiveView} />
+
+        {/* Center content area */}
+        <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex' }}>
+          
+          {isGlobeView ? (
+            <>
+              {/* Full-bleed globe */}
+              <Globe3D isAnomaly={isAnomaly} globeRef={globeRef} searchedCity={searchedCity} />
+
+              {/* 3D / 2D toggle pill */}
+              <div
+                className="absolute z-10 flex items-center gap-0"
+                style={{
+                  bottom: 48,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: 'rgba(255,255,255,0.95)',
+                  border: '1px solid rgba(37,99,235,0.15)',
+                  borderRadius: 20,
+                  overflow: 'hidden',
+                  backdropFilter: 'blur(8px)',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                }}
+              >
+                {['3D', '2D'].map(v => (
+                  <button
+                    key={v}
+                    onClick={() => setView3D(v === '3D')}
+                    style={{
+                      padding: '5px 14px',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: '0.06em',
+                      color: (v === '3D') === view3D ? '#2563eb' : '#64748b',
+                      background: (v === '3D') === view3D ? 'rgba(37,99,235,0.12)' : 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+
+              {/* Zoom controls */}
+              <div
+                className="absolute z-10 flex items-center gap-1"
+                style={{
+                  bottom: 48,
+                  right: 16,
+                  background: 'rgba(255,255,255,0.9)',
+                  border: '1px solid rgba(37,99,235,0.15)',
+                  borderRadius: 8,
+                  padding: '3px 8px',
+                  backdropFilter: 'blur(8px)',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                }}
+              >
+                <span style={{ fontSize: 9, color: '#64748b', marginRight: 4 }}>Zoom</span>
+                {['+', 'ΓêÆ', 'Γèò'].map(s => (
+                  <button
+                    key={s}
+                    onClick={() => {
+                      if (!globeRef.current) return;
+                      if (s === '+') {
+                        const alt = globeRef.current.pointOfView().altitude;
+                        globeRef.current.pointOfView({ altitude: Math.max(0.1, alt - 0.5) }, 400);
+                      } else if (s === 'ΓêÆ') {
+                        const alt = globeRef.current.pointOfView().altitude;
+                        globeRef.current.pointOfView({ altitude: Math.min(5, alt + 0.5) }, 400);
+                      } else if (s === 'Γèò') {
+                        globeRef.current.pointOfView({ lat: TARGET_SERVER.lat, lng: TARGET_SERVER.lng, altitude: 1.9 }, 800);
+                      }
+                    }}
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: 4,
+                      background: 'rgba(37,99,235,0.08)',
+                      border: '1px solid rgba(37,99,235,0.15)',
+                      color: '#475569',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              {/* Left floating panel ΓÇö parcels counter */}
+              <ParcelsCounter
+                monthly={STATS.monthlyDelivered}
+                yearly={STATS.yearlyDelivered}
+                isAnomaly={isAnomaly}
+              />
+
+              {/* Top-right floating cluster */}
+              <StatusCluster
+                isAnomaly={isAnomaly}
+                currentRps={currentRps}
+                activeNodes={8}
+              />
+
+              {/* Anomaly alert banner */}
+              {isAnomaly && (
+                <div
+                  className="absolute top-3 left-1/2 -translate-x-1/2 z-20 animate-fade-up"
+                  style={{
+                    background: 'rgba(255,77,109,0.12)',
+                    border: '1px solid rgba(255,77,109,0.3)',
+                    borderRadius: 8,
+                    padding: '6px 20px',
+                    backdropFilter: 'blur(12px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <span
+                    className="status-dot status-dot-pulse"
+                    style={{ background: '#ff4d6d', width: 6, height: 6 }}
+                  />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#ff4d6d', letterSpacing: '0.06em' }}>
+                    ANOMALY DETECTED ΓÇö {currentRps} RPS
+                  </span>
+                </div>
+              )}
+
+              {/* Incident drawer */}
+              <IncidentDrawer incidents={incidents} />
+            </>
+          ) : (
+            renderView()
+          )}
+        </div>
+
+        {/* Right panel ΓÇö statistics */}
+        <div
+          style={{
+            borderLeft: '1px solid rgba(15,23,42,0.08)',
+            background: 'rgba(238,242,255,0.6)',
+            overflowY: 'auto',
+          }}
+        >
+          <RightPanel
+            currentRps={currentRps}
+            peakRps={peakRps}
+            trafficHistory={trafficHistory}
+            isAnomaly={isAnomaly}
+          />
+        </div>
+      </div>
+
+      <style>{`
+        #left-panel-wrapper {
+          position: absolute;
+          top: 52px;
+          left: 52px;
+          z-index: 8;
+          pointer-events: none;
+        }
+        #left-panel-wrapper > * {
+          pointer-events: all;
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default App;

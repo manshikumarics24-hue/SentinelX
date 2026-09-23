@@ -1,0 +1,484 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background-color: #000010;
+    color: #e2eaf4;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::-webkit-scrollbar {
+    width: 3px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(96, 165, 250, 0.2);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(96, 165, 250, 0.4);
+  }
+}
+
+@layer components {
+
+  /* ── Cyber glass panels ─────────────────────────────── */
+  .cyber-panel {
+    background: rgba(0, 5, 20, 0.75);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(96, 165, 250, 0.15);
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+
+  .cyber-panel-hover {
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .cyber-panel-hover:hover {
+    border-color: rgba(96, 165, 250, 0.3);
+    box-shadow: 0 0 24px rgba(37, 99, 235, 0.15), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+
+  .cyber-panel-dark {
+    background: rgba(0, 2, 12, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+  }
+
+  /* Legacy glass panel (kept for compatibility) */
+  .glass-panel {
+    background: rgba(0, 5, 20, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(96, 165, 250, 0.12);
+    border-radius: 8px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  }
+
+  /* ── Status indicators ──────────────────────────────── */
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .status-dot-pulse {
+    animation: dotPulse 1.8s ease-in-out infinite;
+  }
+
+  .status-dot-ping {
+    animation: dotPing 1.4s ease-out infinite;
+  }
+
+  /* ── Text styles ────────────────────────────────────── */
+  .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(148, 163, 184, 0.7);
+  }
+
+  .glow-text-blue {
+    color: #60a5fa;
+    text-shadow: 0 0 12px rgba(96, 165, 250, 0.5);
+  }
+
+  .glow-text-red {
+    color: #f87171;
+    text-shadow: 0 0 12px rgba(248, 113, 113, 0.5);
+  }
+
+  .glow-text-green {
+    color: #34d399;
+    text-shadow: 0 0 12px rgba(52, 211, 153, 0.5);
+  }
+
+  .cyber-title {
+    font-family: 'Orbitron', monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* ── Nav icon button ────────────────────────────────── */
+  .nav-icon-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    color: rgba(148, 163, 184, 0.6);
+    border: none;
+    background: transparent;
+  }
+
+  .nav-icon-btn:hover {
+    background: rgba(96, 165, 250, 0.1);
+    color: #60a5fa;
+    box-shadow: 0 0 8px rgba(96, 165, 250, 0.15);
+  }
+
+  .nav-icon-btn.active {
+    background: rgba(96, 165, 250, 0.15);
+    color: #60a5fa;
+    box-shadow: 0 0 10px rgba(96, 165, 250, 0.2);
+  }
+
+  /* ── Badges ─────────────────────────────────────────── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 7px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .badge-critical {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+
+  .badge-warning {
+    background: rgba(245, 158, 11, 0.12);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+  }
+
+  .badge-normal {
+    background: rgba(52, 211, 153, 0.1);
+    color: #34d399;
+    border: 1px solid rgba(52, 211, 153, 0.2);
+  }
+
+  .badge-info {
+    background: rgba(96, 165, 250, 0.1);
+    color: #60a5fa;
+    border: 1px solid rgba(96, 165, 250, 0.2);
+  }
+
+  /* ── Threat category bar items ──────────────────────── */
+  .threat-bar-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    border-left: 1px solid rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    transition: background 0.2s;
+    min-width: 80px;
+  }
+
+  .threat-bar-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .threat-bar-item.active {
+    background: rgba(96, 165, 250, 0.08);
+  }
+
+  .threat-bar-item .count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: rgba(226, 234, 244, 0.9);
+  }
+
+  .threat-bar-item .label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 2px;
+  }
+
+  /* ── Incident row ───────────────────────────────────── */
+  .incident-row {
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    transition: background 0.15s, border-color 0.15s;
+    cursor: pointer;
+  }
+
+  .incident-row:hover {
+    background: rgba(96, 165, 250, 0.05);
+    border-color: rgba(96, 165, 250, 0.1);
+  }
+
+  /* ── Divider ────────────────────────────────────────── */
+  .divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  /* ── Globe fade overlays ────────────────────────────── */
+  .globe-fade-bottom {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 140px;
+    background: linear-gradient(to top, #000010 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  .globe-tag {
+    position: absolute;
+    background: rgba(0, 5, 20, 0.9);
+    border: 1px solid rgba(96, 165, 250, 0.25);
+    border-radius: 5px;
+    padding: 4px 10px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #e2eaf4;
+    pointer-events: none;
+    backdrop-filter: blur(12px);
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 0 12px rgba(96, 165, 250, 0.1);
+  }
+
+  /* ── AI confidence gauge ────────────────────────────── */
+  .confidence-bar {
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.08);
+    overflow: hidden;
+  }
+
+  .confidence-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.8s ease;
+  }
+
+  /* ── Scan line effect ───────────────────────────────── */
+  .scanline-overlay {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.03) 2px,
+      rgba(0, 0, 0, 0.03) 4px
+    );
+    z-index: 1;
+  }
+
+  /* ── Top bar nav tab ────────────────────────────────── */
+  .cyber-nav-tab {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+    color: rgba(148, 163, 184, 0.7);
+    border: none;
+    background: transparent;
+    white-space: nowrap;
+  }
+
+  .cyber-nav-tab:hover {
+    color: #e2eaf4;
+    background: rgba(255,255,255,0.05);
+  }
+
+  .cyber-nav-tab.active {
+    color: #60a5fa;
+    background: rgba(96, 165, 250, 0.1);
+    border-bottom: 1px solid #60a5fa;
+  }
+
+  /* ── Counter animate ────────────────────────────────── */
+  .counter {
+    display: inline-block;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  .font-orbitron {
+    font-family: 'Orbitron', monospace;
+  }
+
+  .text-muted {
+    color: rgba(148, 163, 184, 0.6);
+  }
+
+  .text-secondary {
+    color: #94a3b8;
+  }
+
+  .text-accent {
+    color: #60a5fa;
+  }
+}
+
+/* ── Animations ──────────────────────────────────────────────── */
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.75); }
+}
+
+@keyframes dotPing {
+  0% { transform: scale(1); opacity: 1; }
+  70%, 100% { transform: scale(2.2); opacity: 0; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+@keyframes ringPulse {
+  0%   { transform: translate(-50%, -50%) scale(0.9); opacity: 0.7; }
+  100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
+}
+
+@keyframes scanline {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(96,165,250,0.2); }
+  50%       { box-shadow: 0 0 20px rgba(96,165,250,0.5); }
+}
+
+@keyframes glowPulseRed {
+  0%, 100% { box-shadow: 0 0 8px rgba(239,68,68,0.3); }
+  50%       { box-shadow: 0 0 24px rgba(239,68,68,0.7); }
+}
+
+@keyframes tickUp {
+  0%   { transform: translateY(100%); opacity: 0; }
+  100% { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes countUp {
+  from { opacity: 0.4; }
+  to   { opacity: 1; }
+}
+
+.animate-fade-up {
+  animation: fadeInUp 0.4s ease-out both;
+}
+
+.animate-slide-right {
+  animation: slideInRight 0.35s ease-out both;
+}
+
+.animate-slide-left {
+  animation: slideInLeft 0.35s ease-out both;
+}
+
+.animate-slide-up {
+  animation: slideInUp 0.4s ease-out both;
+}
+
+.animate-glow {
+  animation: glowPulse 2.5s ease-in-out infinite;
+}
+
+.animate-glow-red {
+  animation: glowPulseRed 1.5s ease-in-out infinite;
+}
+
+/* Stagger helpers */
+.delay-100 { animation-delay: 0.1s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-300 { animation-delay: 0.3s; }
+.delay-400 { animation-delay: 0.4s; }
+.delay-500 { animation-delay: 0.5s; }
+
+/* Globe canvas */
+#globe-canvas-wrapper canvas {
+  display: block;
+}
+
+/* Sparkline */
+.sparkline path {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Tick anim */
+.tick-up {
+  animation: tickUp 0.22s ease-out;
+}

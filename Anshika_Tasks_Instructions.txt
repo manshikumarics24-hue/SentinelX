@@ -1,0 +1,91 @@
+Hi Anshika,
+
+Lalit and Manshi have pushed their updates for the initial frontend and the core backend logic to the `main` branch. 
+Your task now is to build the scaling, streaming, and traffic simulation components as defined in the master guide. 
+
+Here is the step-by-step guide to get everything running and how you should proceed:
+
+### Step 1: Pull the Latest Code
+Open your terminal in the project directory (`ddos-soc-dashboard` / `sentinelx`) and run:
+```bash
+git checkout main
+git pull origin main
+git checkout -b backend-anshika
+```
+This ensures you have the latest code and are working on your isolated branch.
+
+### Step 2: Ensure Docker is Running
+Since you have installed Docker Desktop, make sure the app is open and running in the background. Then, start the Redis and Postgres containers:
+```bash
+docker run -d --name soc-redis -p 6379:6379 redis/redis-stack:latest
+docker run -d --name soc-postgres -e POSTGRES_DB=soc_db -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=secret -p 5432:5432 postgres:15
+```
+*(If the containers already exist from a previous run, just start them with: `docker start soc-redis soc-postgres`)*
+
+### Step 3: Set up Python Environment
+Navigate to the `backend/` directory, set up your virtual environment, and install dependencies:
+```bash
+cd backend
+python -m venv env
+# On Windows:
+env\Scripts\activate
+# On Mac/Linux:
+# source env/bin/activate
+
+pip install fastapi uvicorn redis websockets httpx pydantic psycopg2-binary sqlalchemy openai python-dotenv
+```
+
+### Step 4: Complete Your Code Tasks
+You need to implement the following files in the `backend/` directory. (You can refer to the `DDoS_SOC_Dashboard_Master_Guide_v2.md` in the project root for the exact code blocks to copy-paste):
+1. **`backend/app/ingestion/redis_client.py`**: Handle sub-second counter state in Redis.
+2. **`backend/app/ingestion/websocket_manager.py`**: Broadcast metrics via FastAPI WebSockets to the React frontend.
+3. **`backend/app/ingestion/main.py`**: Configure the FastAPI HTTP endpoints and WebSocket routing.
+4. **`backend/simulator/traffic_simulator.py`**: Write the async script that fires normal HTTP traffic and occasional DDoS spikes.
+
+### Step 5: How to Run the Complete System
+Once you have written your code, you will need 5 terminal windows to run all components together.
+
+**Terminal 1 (Infrastructure)**
+```bash
+docker start soc-redis soc-postgres
+```
+
+**Terminal 2 (FastAPI Ingestion & WebSockets - Your Code)**
+```bash
+cd backend
+# Make sure your virtual environment is activated
+uvicorn app.ingestion.main:app --reload --port 8000
+```
+
+**Terminal 3 (Anomaly Detector - Lalit's Code)**
+```bash
+cd backend
+# Make sure your virtual environment is activated
+# Note: On Windows, use `set PYTHONIOENCODING=utf-8` before running if you get emoji encoding errors
+python -m app.intelligence.detector
+```
+
+**Terminal 4 (Traffic Simulator - Your Code)**
+```bash
+cd backend
+# Make sure your virtual environment is activated
+python simulator/traffic_simulator.py
+```
+
+**Terminal 5 (React Dashboard - Manshi & Lalit's Code)**
+```bash
+cd frontend  # or run directly in root if package.json is there
+npm install
+npm run dev
+```
+
+### Step 6: Push Your Code
+Once everything is working and you see the traffic flowing into the dashboard, commit and push your changes:
+```bash
+git add .
+git commit -m "Added Redis atomic counter and WebSocket broadcaster"
+git push origin backend-anshika
+```
+Then open a Pull Request to `main` on GitHub!
+
+Let me know if you run into any issues. Happy coding!
