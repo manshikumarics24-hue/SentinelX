@@ -36,13 +36,21 @@ def run_anomaly_detector():
             if status != "NORMAL":
                 print(f"\n🚨 ANOMALY DETECTED! Status: {status} | Peak RPS: {total}. Triggering AI Explainer & Postgres Log...")
                 
-                ai_summary = generate_incident_explanation(status, total, attacker_ips)
+                ai_summary = generate_incident_explanation(
+                    status, total, attacker_ips, classification.get("legitimate_rps", 0)
+                )
                 
                 db = SessionLocal()
                 new_incident = Incident(
                     total_rps=total,
                     status=status,
                     attacker_ips=",".join(attacker_ips),
+                    source_count=classification.get("source_count", len(attacker_ips)),
+                    top_source_rps=classification.get("top_source_rps", 0),
+                    top_source_concentration=classification.get("top_source_concentration", 0),
+                    legitimate_rps=classification.get("legitimate_rps", 0),
+                    faulty_rps=classification.get("faulty_rps", 0),
+                    detection_reason=classification.get("detection_reason", ""),
                     ai_explanation=ai_summary
                 )
                 db.add(new_incident)

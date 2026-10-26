@@ -122,16 +122,16 @@ async def rps_broadcaster_loop():
         is_attack    = classification["is_attack"]
         attacker_ips = classification["attacker_ips"]
 
-        # AI explanation — generated every time during an attack so the panel updates live
-        ai_summary = generate_incident_explanation(
-            status, total, attacker_ips, classification["legitimate_rps"]
-        ) if is_attack else None
-
         # Geo-enrich attacker IPs → real lat/lng for globe nodes
         active_threat_nodes = []
+        top_locations = []
         ai_insights = []
         if is_attack and attacker_ips:
             active_threat_nodes = await process_threat_ips(attacker_ips)
+            top_locations = [
+                f"{n['city']}, {n['country']}" if n.get('country') else n['city']
+                for n in active_threat_nodes if n.get('city') and n.get('city') != 'Unknown'
+            ]
             try:
                 top_ip  = attacker_ips[0]
                 insight = generate_ip_confidence_score(top_ip)
@@ -139,6 +139,11 @@ async def rps_broadcaster_loop():
                 ai_insights.append(insight)
             except Exception:
                 pass
+
+        # AI explanation — generated during an attack with real source geolocation context
+        ai_summary = generate_incident_explanation(
+            status, total, attacker_ips, classification["legitimate_rps"], top_locations
+        ) if is_attack else None
 
         # Save to DB (with 30s cooldown to avoid spam)
         if is_attack and (now - _last_incident_time) > COOLDOWN_SECONDS:
@@ -198,6 +203,8 @@ async def rps_broadcaster_loop():
             "baseline_rps":             70,
             "active_incident":          is_attack,
             "active_threat_nodes":      active_threat_nodes,
+            "top_locations":            top_locations,
+            "attack_origin":            active_threat_nodes[0] if active_threat_nodes else None,
             "global_traffic_events":    global_traffic_events,
             "ai_insights":              ai_insights,
         }

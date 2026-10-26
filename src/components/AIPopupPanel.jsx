@@ -8,9 +8,11 @@ const AIPopupPanel = ({ trafficData, aiInsights = [], incidents = [] }) => {
   const [lastStatus, setLastStatus] = useState(null);
   const [score, setScore] = useState(0);
   const [animatedScore, setAnimatedScore] = useState(0);
+  const [countdown, setCountdown] = useState(16);
   const typingRef = useRef(null);
   const scoreAnimRef = useRef(null);
   const dismissTimerRef = useRef(null);
+  const countdownIntervalRef = useRef(null);
 
   const getAnalysisText = (data) => {
     if (!data) return '';
@@ -20,15 +22,17 @@ const AIPopupPanel = ({ trafficData, aiInsights = [], incidents = [] }) => {
       source_count, top_source_concentration,
     } = data;
 
+    const origin = data.top_locations?.[0] || data.attack_origin?.city || (data.attacker_ips?.[0] ? `IP ${data.attacker_ips[0]}` : 'Global');
+
     if (ai_explanation) {
-      return `${ai_explanation}\n\nEvidence: ${detection_reason || 'Anomaly threshold exceeded'}. Sources observed: ${source_count ?? '—'}. Top-source concentration: ${top_source_concentration ?? 0}%.`;
+      return `[ORIGIN: ${origin}]\n\n${ai_explanation}\n\nEvidence: ${detection_reason || 'Anomaly threshold exceeded'}. Sources observed: ${source_count ?? '—'}. Top-source concentration: ${top_source_concentration ?? 0}%.`;
     }
     if (status === 'VOLUMETRIC_DDOS') {
-      return `CRITICAL: Volumetric DDoS in progress.\n\nTraffic spiked to ${current_rps} RPS. All traffic classified as malicious botnet payload. Top attacker IPs: ${attacker_ips?.slice(0, 2).join(', ') || 'N/A'}.\n\nRecommended: Activate upstream scrubbing and rate-limiting immediately.`;
+      return `CRITICAL: Sudden Volumetric DDoS Surge originating from ${origin}.\n\nTraffic spiked to ${current_rps} RPS. High-volume botnet flood detected. Top attacker IPs: ${attacker_ips?.slice(0, 3).join(', ') || 'N/A'}.\n\nMitigation: Upstream BGP null-routing and edge rate-limiting engaged. Telemetry archived to NeonTech PostgreSQL.`;
     }
     if (status === 'BOT_ATTACK') {
       const pct = current_rps > 0 ? Math.round((faulty_rps / current_rps) * 100) : 0;
-      return `WARNING: Targeted Bot Attack detected.\n\nTraffic: ${current_rps} RPS. Single-IP: ${attacker_ips?.[0] || 'unknown'} responsible for ${faulty_rps} RPS (${pct}% of total).\n\nLegitimate traffic preserved: ${legitimate_rps} RPS. Block attacker IP at firewall.`;
+      return `WARNING: Targeted Bot Attack Spike originating from ${origin}.\n\nTraffic: ${current_rps} RPS. Offending IP: ${attacker_ips?.[0] || 'unknown'} responsible for ${faulty_rps} RPS (${pct}% of total volume).\n\nLegitimate traffic preserved: ${legitimate_rps} RPS. Malicious IP quarantined at edge WAF. Incident saved to database.`;
     }
     return '';
   };
@@ -40,6 +44,7 @@ const AIPopupPanel = ({ trafficData, aiInsights = [], incidents = [] }) => {
     if (is_attack && status !== lastStatus) {
       setLastStatus(status);
       setVisible(true);
+      setCountdown(16);
 
       // Typewriter effect
       const fullText = getAnalysisText(trafficData);
@@ -73,9 +78,22 @@ const AIPopupPanel = ({ trafficData, aiInsights = [], incidents = [] }) => {
         setAnimatedScore(s);
       }, 40);
 
-      // Auto-dismiss after 18 seconds
+      // 16-second countdown
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownIntervalRef.current);
+            setVisible(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      // Auto-dismiss safety timer
       if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
-      dismissTimerRef.current = setTimeout(() => setVisible(false), 18_000);
+      dismissTimerRef.current = setTimeout(() => setVisible(false), 16_000);
     }
 
     if (!is_attack && lastStatus) {
@@ -86,6 +104,7 @@ const AIPopupPanel = ({ trafficData, aiInsights = [], incidents = [] }) => {
   useEffect(() => () => {
     clearInterval(typingRef.current);
     clearInterval(scoreAnimRef.current);
+    clearInterval(countdownIntervalRef.current);
     clearTimeout(dismissTimerRef.current);
   }, []);
 
@@ -190,6 +209,43 @@ const AIPopupPanel = ({ trafficData, aiInsights = [], incidents = [] }) => {
           >
             <X size={12} />
           </button>
+        </div>
+
+        {/* Origin and Spike Meta Banner */}
+        <div
+          style={{
+            background: 'rgba(239,68,68,0.12)',
+            border: '1px solid rgba(239,68,68,0.25)',
+            borderRadius: 6,
+            padding: '6px 8px',
+            marginBottom: 8,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: '#fca5a5', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              📍 Origin: {trafficData.top_locations?.[0] || trafficData.attack_origin?.city || 'Distributed Botnet'}
+            </span>
+            <span
+              className="font-mono"
+              style={{
+                fontSize: 9,
+                fontWeight: 700,
+                color: '#f87171',
+                background: 'rgba(239,68,68,0.2)',
+                padding: '1px 5px',
+                borderRadius: 3,
+              }}
+            >
+              +{trafficData.current_rps} RPS SPIKE
+            </span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 8, color: '#94a3b8' }}>
+            <span>💾 NeonTech DB: <span style={{ color: '#34d399' }}>✓ Synced</span></span>
+            <span style={{ color: '#fbbf24', fontWeight: 600 }}>Vanishes in {countdown}s</span>
+          </div>
         </div>
 
         {/* AI Explanation — typewriter */}

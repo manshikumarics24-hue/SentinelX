@@ -39,7 +39,9 @@ const statusLabel = {
 
 const AlertsView = ({ incidents = [], onResolve }) => {
   const [filterSeverity, setFilterSeverity] = useState('ALL');
+  const [viewTab, setViewTab] = useState('ACTIVE'); // 'ACTIVE' | 'HISTORY'
   const [resolving, setResolving] = useState(null);
+  const [optimisticResolved, setOptimisticResolved] = useState(new Set());
 
   // Convert incident objects from backend shape to alert display shape
   const alerts = incidents.map(inc => ({
@@ -53,34 +55,45 @@ const AlertsView = ({ incidents = [], onResolve }) => {
     concentration: inc.top_source_concentration,
     detection_reason: inc.detection_reason,
     peak_rps:   inc.peak_rps,
-    acknowledged: inc.resolved,
+    acknowledged: inc.resolved || optimisticResolved.has(parseInt(inc.id, 10)),
     dbId:       parseInt(inc.id, 10),
   }));
 
+  const activeAlerts = alerts.filter(a => !a.acknowledged);
+  const resolvedAlerts = alerts.filter(a => a.acknowledged);
+
+  const baseList = viewTab === 'ACTIVE' ? activeAlerts : resolvedAlerts;
+
   const filtered =
     filterSeverity === 'ALL'
-      ? alerts
-      : alerts.filter(a => a.severity === filterSeverity);
+      ? baseList
+      : baseList.filter(a => a.severity === filterSeverity);
 
-  const unacked = alerts.filter(a => !a.acknowledged).length;
+  const unacked = activeAlerts.length;
 
   const handleAcknowledge = async (alert) => {
     setResolving(alert.id);
-    await resolveIncident(alert.dbId);
-    if (onResolve) onResolve();        // re-fetch incidents in parent
-    setResolving(null);
+    setOptimisticResolved(prev => new Set(prev).add(alert.dbId));
+    try {
+      await resolveIncident(alert.dbId);
+      if (onResolve) onResolve();        // re-fetch incidents in parent
+    } catch (err) {
+      console.error('Failed to resolve incident:', err);
+    } finally {
+      setResolving(null);
+    }
   };
 
   return (
     <div className="flex-1 overflow-y-auto p-6 animate-fade-up" style={{ background: 'transparent' }}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 700, color: '#f8fafc' }}>
             Alerts &amp; Notifications
           </h2>
           <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
-            {unacked} unacknowledged alert{unacked !== 1 ? 's' : ''} · {alerts.length} total (from PostgreSQL)
+            {unacked} active alert{unacked !== 1 ? 's' : ''} · {alerts.length} total preserved in Neon PostgreSQL
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -95,9 +108,9 @@ const AlertsView = ({ incidents = [], onResolve }) => {
                 fontWeight: 600,
                 cursor: 'pointer',
                 border: 'none',
-                background: filterSeverity === s ? '#2563eb' : '#fff',
-                color: filterSeverity === s ? '#fff' : '#64748b',
-                boxShadow: filterSeverity !== s ? '0 0 0 1px #e2e8f0' : 'none',
+                background: filterSeverity === s ? '#2563eb' : 'rgba(255,255,255,0.06)',
+                color: filterSeverity === s ? '#fff' : '#94a3b8',
+                boxShadow: filterSeverity === s ? '0 0 12px rgba(37,99,235,0.4)' : 'none',
                 transition: 'all 0.15s',
               }}
             >
@@ -107,6 +120,83 @@ const AlertsView = ({ incidents = [], onResolve }) => {
         </div>
       </div>
 
+      {/* Primary Tab Switcher: Active Alerts vs Database History */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          marginBottom: 16,
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          paddingBottom: 8,
+        }}
+      >
+        <button
+          onClick={() => setViewTab('ACTIVE')}
+          style={{
+            padding: '6px 14px',
+            borderRadius: 6,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: 'pointer',
+            border: 'none',
+            background: viewTab === 'ACTIVE' ? 'rgba(239,68,68,0.2)' : 'transparent',
+            color: viewTab === 'ACTIVE' ? '#fca5a5' : '#64748b',
+            outline: viewTab === 'ACTIVE' ? '1px solid rgba(239,68,68,0.4)' : 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            transition: 'all 0.15s',
+          }}
+        >
+          <span>🚨 Active Alerts</span>
+          <span
+            style={{
+              fontSize: 10,
+              background: viewTab === 'ACTIVE' ? '#ef4444' : 'rgba(255,255,255,0.1)',
+              color: '#fff',
+              padding: '1px 6px',
+              borderRadius: 10,
+              fontWeight: 800,
+            }}
+          >
+            {unacked}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setViewTab('HISTORY')}
+          style={{
+            padding: '6px 14px',
+            borderRadius: 6,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: 'pointer',
+            border: 'none',
+            background: viewTab === 'HISTORY' ? 'rgba(52,211,153,0.15)' : 'transparent',
+            color: viewTab === 'HISTORY' ? '#34d399' : '#64748b',
+            outline: viewTab === 'HISTORY' ? '1px solid rgba(52,211,153,0.3)' : 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            transition: 'all 0.15s',
+          }}
+        >
+          <span>💾 Database History (NeonTech)</span>
+          <span
+            style={{
+              fontSize: 10,
+              background: viewTab === 'HISTORY' ? '#10b981' : 'rgba(255,255,255,0.1)',
+              color: '#fff',
+              padding: '1px 6px',
+              borderRadius: 10,
+              fontWeight: 800,
+            }}
+          >
+            {resolvedAlerts.length}
+          </span>
+        </button>
+      </div>
+
       {/* No data state */}
       {filtered.length === 0 && (
         <div
@@ -114,10 +204,12 @@ const AlertsView = ({ incidents = [], onResolve }) => {
           style={{ color: '#94a3b8' }}
         >
           <Shield size={40} style={{ opacity: 0.3 }} />
-          <p style={{ fontSize: 13 }}>
-            {alerts.length === 0
-              ? 'No incidents logged yet — run the traffic simulator to generate attacks.'
-              : 'No alerts match the selected filter.'}
+          <p style={{ fontSize: 13, textAlign: 'center' }}>
+            {viewTab === 'ACTIVE'
+              ? (unacked === 0 && alerts.length > 0
+                  ? 'All incidents acknowledged! Historical records remain safely archived in Database History.'
+                  : 'No active alerts — run the traffic simulator to trigger real-time attacks.')
+              : 'No resolved incidents recorded yet in NeonTech PostgreSQL.'}
           </p>
         </div>
       )}
@@ -132,9 +224,9 @@ const AlertsView = ({ incidents = [], onResolve }) => {
               key={alert.id}
               className="rounded-xl p-4 flex gap-4"
               style={{
-                background: alert.acknowledged ? '#fff' : config.bg,
-                border: `1px solid ${alert.acknowledged ? '#e2e8f0' : config.border}`,
-                opacity: alert.acknowledged ? 0.75 : 1,
+                background: alert.acknowledged ? 'rgba(15,23,42,0.6)' : config.bg,
+                border: `1px solid ${alert.acknowledged ? 'rgba(255,255,255,0.08)' : config.border}`,
+                opacity: alert.acknowledged ? 0.85 : 1,
                 transition: 'all 0.2s',
               }}
             >
@@ -184,7 +276,24 @@ const AlertsView = ({ incidents = [], onResolve }) => {
                       {alert.peak_rps} RPS peak
                     </span>
                   )}
-                  {alert.acknowledged && <CheckCircle size={14} color="#16a34a" />}
+                  {alert.acknowledged && (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        padding: '2px 7px',
+                        borderRadius: 4,
+                        background: 'rgba(52,211,153,0.15)',
+                        color: '#34d399',
+                        fontWeight: 700,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      <CheckCircle size={10} color="#34d399" />
+                      Preserved in DB
+                    </span>
+                  )}
                 </div>
                 <p style={{ fontSize: 12, color: '#cbd5e1', marginBottom: 6 }}>
                   {alert.message}

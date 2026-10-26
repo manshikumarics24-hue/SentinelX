@@ -157,43 +157,99 @@ const App = () => {
         onToggleIncidents={() => setDrawerOpen(o => !o)}
       />
 
-      {/* ── Layer 2: Attack status banner ───────────────────────────────── */}
+      {/* ── Layer 2: Sudden Spike Cyber Alert Banner ─────────────────── */}
       {isAnomaly && (
         <div
           className="animate-fade-up"
           style={{
             position: 'fixed',
-            top: 60,
+            top: 58,
             left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 95,
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
-            padding: '5px 18px',
-            borderRadius: 5,
-            background: 'rgba(239,68,68,0.1)',
-            border: '1px solid rgba(239,68,68,0.35)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
+            gap: 12,
+            padding: '7px 20px',
+            borderRadius: 8,
+            background: 'rgba(239,68,68,0.14)',
+            border: '1px solid rgba(239,68,68,0.45)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            boxShadow: '0 0 24px rgba(239,68,68,0.25), 0 4px 16px rgba(0,0,0,0.6)',
           }}
         >
-          <span
-            className="status-dot status-dot-pulse"
-            style={{ background: '#ef4444', width: 6, height: 6 }}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span
+              className="status-dot status-dot-pulse"
+              style={{ background: '#ef4444', width: 8, height: 8 }}
+            />
+            <span
+              className="font-mono"
+              style={{
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: '0.1em',
+                color: '#fca5a5',
+                textTransform: 'uppercase',
+              }}
+            >
+              🚨 SUDDEN SPIKE: {status.replace(/_/g, ' ')}
+            </span>
+          </div>
+
+          <div style={{ height: 14, width: 1, background: 'rgba(239,68,68,0.3)' }} />
+
+          {/* Spike Metrics */}
           <span
             className="font-mono"
             style={{
               fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: '0.1em',
-              color: '#f87171',
-              textTransform: 'uppercase',
+              fontWeight: 800,
+              color: '#ef4444',
+              letterSpacing: '0.04em',
             }}
           >
-            {status.replace(/_/g, ' ')} — {currentRps} RPS
+            {currentRps} RPS (+{Math.max(0, Math.round(((currentRps - 70) / 70) * 100))}% over normal)
           </span>
+
+          <div style={{ height: 14, width: 1, background: 'rgba(239,68,68,0.3)' }} />
+
+          {/* Source Location */}
+          <span
+            style={{
+              fontSize: 10,
+              color: 'rgba(226,234,244,0.9)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <span style={{ color: '#f87171', fontWeight: 600 }}>SOURCE:</span>
+            {lastJsonMessage?.top_locations?.[0] || lastJsonMessage?.attack_origin?.city || (lastJsonMessage?.attacker_ips?.[0] ? `IP: ${lastJsonMessage.attacker_ips[0]}` : 'Distributed')}
+          </span>
+
+          {/* Quick link to Incident DB */}
+          <button
+            onClick={() => {
+              setDrawerView('Alerts');
+              setDrawerOpen(true);
+            }}
+            style={{
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(239,68,68,0.35)',
+              borderRadius: 4,
+              padding: '2px 8px',
+              fontSize: 9,
+              fontWeight: 600,
+              color: '#fca5a5',
+              cursor: 'pointer',
+              marginLeft: 4,
+              transition: 'all 0.2s ease',
+            }}
+          >
+            View DB Record →
+          </button>
         </div>
       )}
 
