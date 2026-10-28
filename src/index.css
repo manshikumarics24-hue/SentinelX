@@ -18,8 +18,8 @@
   }
 
   body {
-    background-color: #000010;
-    color: #e2eaf4;
+    background-color: #07080c;
+    color: #f1f5f9;
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -262,7 +262,7 @@
     left: 0;
     right: 0;
     height: 140px;
-    background: linear-gradient(to top, #000010 0%, transparent 100%);
+    background: linear-gradient(to top, #07080c 0%, transparent 100%);
     pointer-events: none;
     z-index: 5;
   }

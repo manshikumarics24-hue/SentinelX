@@ -230,7 +230,7 @@ const Globe3D = ({ isAnomaly, globeRef, searchedCity, activeThreatNodes = [], tr
       id="globe-canvas-wrapper"
       style={{
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0,
-        background: 'radial-gradient(ellipse at center, #020824 0%, #000010 100%)',
+        background: 'radial-gradient(ellipse at 50% 45%, #151922 0%, #0c0e15 65%, #07080c 100%)',
       }}
     >
       <Globe
@@ -241,8 +241,8 @@ const Globe3D = ({ isAnomaly, globeRef, searchedCity, activeThreatNodes = [], tr
         bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
         backgroundImageUrl={null}
         backgroundColor="rgba(0,0,0,0)"
-        atmosphereColor={isAnomaly ? '#8b0000' : '#1a4a8a'}
-        atmosphereAltitude={isAnomaly ? 0.22 : 0.13}
+        atmosphereColor={isAnomaly ? '#ef4444' : '#60a5fa'}
+        atmosphereAltitude={isAnomaly ? 0.18 : 0.10}
         /* ── Arcs ── */
         arcsData={arcsData}
         arcStartLat={d => d.startLat}

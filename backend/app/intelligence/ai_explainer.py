@@ -5,6 +5,7 @@ from app.config import config
 
 client = OpenAI(api_key=config.OPENAI_API_KEY)
 
+<<<<<<< HEAD
 import time
 
 _quota_exhausted_until = 0
@@ -48,18 +49,27 @@ def _get_rule_based_explanation(status: str, peak_rps: int, attacker_ips: list, 
         )
 
 # ─── Incident Explanation (SOC narrative) ────────────────────────────────────
+=======
+# ─── Incident Explanation (SOC narrative in simple, clear language) ──────────
+>>>>>>> 6300011 (Refactor theme to sleek charcoal space palette, simplify AI explanations, and clean up Windows venv binaries)
 def generate_incident_explanation(
     status: str,
     peak_rps: int,
     attacker_ips: list,
     legitimate_rps: int = 0,
+<<<<<<< HEAD
     top_locations: list = None,
+=======
+    source_locations: str = "",
+>>>>>>> 6300011 (Refactor theme to sleek charcoal space palette, simplify AI explanations, and clean up Windows venv binaries)
 ) -> str:
     global _quota_exhausted_until
     source_count   = len(attacker_ips)
     malicious_rps  = max(peak_rps - legitimate_rps, 0)
     concentration  = round(malicious_rps / peak_rps * 100) if peak_rps else 0
+    origin_desc    = f" from {source_locations}" if source_locations else ""
 
+<<<<<<< HEAD
     now = time.time()
     # If no key, or key has previously exhausted quota within the last 5 minutes, use expert rule engine
     if not config.OPENAI_API_KEY or config.OPENAI_API_KEY in ("", "your-openai-key-here") or now < _quota_exhausted_until:
@@ -86,23 +96,82 @@ def generate_incident_explanation(
     3. Immediate SOC mitigation steps taken
 
     Be specific about numbers. Explicitly state the source origin location in sentence 1. Write in present tense.
+=======
+    # ── Mock fallback (no OpenAI key) — simple, human-friendly explanation ─
+    if not config.OPENAI_API_KEY or config.OPENAI_API_KEY in ("", "your-openai-key-here"):
+        ip_list = ", ".join(attacker_ips[:3]) if attacker_ips else "unknown sources"
+
+        if status == "VOLUMETRIC_DDOS":
+            return (
+                f"🚨 Huge Traffic Flood (DDoS Attack): The server is being flooded with {peak_rps} requests per second, "
+                f"which is way above our safety limit of 400 requests/sec. "
+                f"Source: Over {source_count} computers{origin_desc} (Top IPs: {ip_list}) are bombarding the site at once. "
+                f"Impact & Defense: This is 100% fake attack traffic trying to take the site down. "
+                f"Our cloud traffic shield has automatically stepped in to absorb the surge and protect legitimate visitors."
+            )
+        elif status == "BOT_ATTACK":
+            top_ip = attacker_ips[0] if attacker_ips else "unknown"
+            return (
+                f"🤖 Single-Source Bot Attack: One automated bot{origin_desc} (IP: {top_ip}) is spamming the system "
+                f"with {malicious_rps} requests/second ({concentration}% of all traffic). "
+                f"Source: Computer at IP {top_ip}. "
+                f"Impact & Defense: Regular users ({legitimate_rps} req/sec) are still able to browse safely. "
+                f"The attacker's IP has been automatically identified and blocked at our firewall."
+            )
+        elif status == "FLASH_SALE":
+            return (
+                f"🛍️ Safe Traffic Surge (Flash Sale / Viral Event): Traffic jumped to {peak_rps} requests per second, "
+                f"but it is coming naturally from {source_count} real people{origin_desc}. "
+                f"Source: Many distributed everyday users. "
+                f"Impact & Defense: No single computer is taking over. No blocking is needed, everything is safe."
+            )
+        else:
+            return (
+                f"🟢 System Normal: Traffic is completely healthy at {peak_rps} requests per second. "
+                f"Source: Normal users across {source_count} locations. No threats detected."
+            )
+
+    # ── OpenAI live call (Simple, clear, easy language) ─────────────────────
+    location_hint = f"- Origin / Location: {source_locations}\n" if source_locations else ""
+    prompt = f"""
+    You are an AI Cybersecurity Assistant explaining a website security alert to a non-technical user.
+    Write in very simple, clear, everyday English. Avoid complex jargon so anyone can understand immediately.
+
+    Alert Details:
+    - Alert Type: {status}
+    - Total Traffic: {peak_rps} requests every second
+    - Malicious Traffic: {malicious_rps} requests/sec
+    - Legitimate Normal Users: {legitimate_rps} requests/sec
+    - Attacking IP Addresses: {attacker_ips[:3]}
+    {location_hint}
+    - Top Attacker Concentration: {concentration}% of total volume
+
+    Write exactly 3 short sentences in simple plain language:
+    1. Sentence 1: What happened in simple words (e.g. "A massive wave of fake traffic is flooding the server" or "A single aggressive bot is spamming the login page").
+    2. Sentence 2: Where the attack is coming from, specifically naming the source IP address and location.
+    3. Sentence 3: How this affects real users and the immediate protective action taken (e.g. "Real users can still access the site, and the attacking IP was blocked at the firewall").
+>>>>>>> 6300011 (Refactor theme to sleek charcoal space palette, simplify AI explanations, and clean up Windows venv binaries)
     """
 
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=200,
+            max_tokens=220,
             temperature=0.3,
             timeout=3.0,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
+<<<<<<< HEAD
         # If quota exhausted or rate limited, remember for 1 hour so we don't stall the loop
         err_msg = str(e).lower()
         if "quota" in err_msg or "429" in err_msg or "billing" in err_msg or "credit" in err_msg:
             _quota_exhausted_until = now + 3600
         return _get_rule_based_explanation(status, peak_rps, attacker_ips, legitimate_rps, top_locations)
+=======
+        return f"[{status}] Alert detected at {peak_rps} RPS. (AI summary unavailable: {str(e)})"
+>>>>>>> 6300011 (Refactor theme to sleek charcoal space palette, simplify AI explanations, and clean up Windows venv binaries)
 
 
 # ─── IP Confidence Score ──────────────────────────────────────────────────────

@@ -65,7 +65,7 @@ const Map2D = ({ isAnomaly, activeThreatNodes = [], trafficEvents = [] }) => {
         height: '100%',
         position: 'relative',
         overflow: 'hidden',
-        background: 'radial-gradient(ellipse at center, #020824 0%, #000010 100%)',
+        background: 'radial-gradient(ellipse at 50% 50%, #151922 0%, #0c0e15 70%, #07080c 100%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -80,7 +80,11 @@ const Map2D = ({ isAnomaly, activeThreatNodes = [], trafficEvents = [] }) => {
           backgroundSize: '100% 100%',
           backgroundRepeat: 'no-repeat',
           backgroundPosition: 'center',
+<<<<<<< HEAD
           filter: 'invert(1) opacity(0.09) hue-rotate(200deg)',
+=======
+          filter: 'invert(1) opacity(0.09) hue-rotate(190deg)',
+>>>>>>> 6300011 (Refactor theme to sleek charcoal space palette, simplify AI explanations, and clean up Windows venv binaries)
           pointerEvents: 'none',
         }}
       />
@@ -227,7 +231,7 @@ const Map2D = ({ isAnomaly, activeThreatNodes = [], trafficEvents = [] }) => {
         style={{
           position: 'absolute',
           inset: 0,
-          background: 'linear-gradient(to top, #000010 0%, transparent 20%, transparent 80%, #000010 100%)',
+          background: 'linear-gradient(to top, #07080c 0%, transparent 20%, transparent 80%, #07080c 100%)',
           pointerEvents: 'none',
         }}
       />

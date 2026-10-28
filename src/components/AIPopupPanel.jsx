@@ -25,6 +25,7 @@ const AIPopupPanel = ({ trafficData, aiInsights = [], incidents = [] }) => {
     const origin = data.top_locations?.[0] || data.attack_origin?.city || (data.attacker_ips?.[0] ? `IP ${data.attacker_ips[0]}` : 'Global');
 
     if (ai_explanation) {
+<<<<<<< HEAD
       return `[ORIGIN: ${origin}]\n\n${ai_explanation}\n\nEvidence: ${detection_reason || 'Anomaly threshold exceeded'}. Sources observed: ${source_count ?? '—'}. Top-source concentration: ${top_source_concentration ?? 0}%.`;
     }
     if (status === 'VOLUMETRIC_DDOS') {
@@ -33,6 +34,16 @@ const AIPopupPanel = ({ trafficData, aiInsights = [], incidents = [] }) => {
     if (status === 'BOT_ATTACK') {
       const pct = current_rps > 0 ? Math.round((faulty_rps / current_rps) * 100) : 0;
       return `WARNING: Targeted Bot Attack Spike originating from ${origin}.\n\nTraffic: ${current_rps} RPS. Offending IP: ${attacker_ips?.[0] || 'unknown'} responsible for ${faulty_rps} RPS (${pct}% of total volume).\n\nLegitimate traffic preserved: ${legitimate_rps} RPS. Malicious IP quarantined at edge WAF. Incident saved to database.`;
+=======
+      return ai_explanation;
+    }
+    if (status === 'VOLUMETRIC_DDOS') {
+      return `🚨 Traffic Flood (Volumetric DDoS): Sudden surge of ${current_rps} requests per second.\n\n📍 Origin: Distributed botnet nodes (Top IPs: ${attacker_ips?.slice(0, 2).join(', ') || 'N/A'}).\n\n🛡️ Action: All fake traffic filtered out. Real visitors safe.`;
+    }
+    if (status === 'BOT_ATTACK') {
+      const pct = current_rps > 0 ? Math.round((faulty_rps / current_rps) * 100) : 0;
+      return `🤖 Bot Attack: A single computer (IP: ${attacker_ips?.[0] || 'unknown'}) is sending ${faulty_rps} requests/second (${pct}% of all traffic).\n\n📍 Origin: IP ${attacker_ips?.[0] || 'Unknown'}.\n\n🛡️ Action: Attacker IP blocked. Normal traffic (${legitimate_rps} req/sec) safe.`;
+>>>>>>> 6300011 (Refactor theme to sleek charcoal space palette, simplify AI explanations, and clean up Windows venv binaries)
     }
     return '';
   };
@@ -77,6 +88,7 @@ const AIPopupPanel = ({ trafficData, aiInsights = [], incidents = [] }) => {
         }
         setAnimatedScore(s);
       }, 40);
+<<<<<<< HEAD
 
       // 16-second countdown
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
@@ -94,10 +106,15 @@ const AIPopupPanel = ({ trafficData, aiInsights = [], incidents = [] }) => {
       // Auto-dismiss safety timer
       if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
       dismissTimerRef.current = setTimeout(() => setVisible(false), 16_000);
+=======
+>>>>>>> 6300011 (Refactor theme to sleek charcoal space palette, simplify AI explanations, and clean up Windows venv binaries)
     }
 
     if (!is_attack && lastStatus) {
       setLastStatus(null);
+      // Auto-hide 8 seconds after attack ends
+      if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+      dismissTimerRef.current = setTimeout(() => setVisible(false), 8000);
     }
   }, [trafficData, aiInsights]);
 
@@ -108,7 +125,38 @@ const AIPopupPanel = ({ trafficData, aiInsights = [], incidents = [] }) => {
     clearTimeout(dismissTimerRef.current);
   }, []);
 
-  if (!visible || !trafficData?.is_attack) return null;
+  if (!visible) {
+    if (trafficData?.is_attack) {
+      return (
+        <button
+          onClick={() => setVisible(true)}
+          style={{
+            position: 'fixed',
+            top: 72,
+            left: 16,
+            zIndex: 90,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 14px',
+            borderRadius: 8,
+            background: 'rgba(239,68,68,0.25)',
+            border: '1px solid rgba(239,68,68,0.6)',
+            backdropFilter: 'blur(16px)',
+            color: '#f87171',
+            fontSize: 11,
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 4px 20px rgba(239,68,68,0.4)',
+          }}
+        >
+          <Brain size={14} color="#f87171" />
+          <span>VIEW AI THREAT ANALYSIS</span>
+        </button>
+      );
+    }
+    return null;
+  }
 
   const status = trafficData.status;
   const isVolumetric = status === 'VOLUMETRIC_DDOS';

@@ -124,7 +124,7 @@ const App = () => {
         width: '100vw',
         height: '100vh',
         overflow: 'hidden',
-        background: '#000010',
+        background: '#07080c',
         position: 'relative',
       }}
     >

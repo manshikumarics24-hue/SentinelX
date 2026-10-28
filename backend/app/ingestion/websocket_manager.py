@@ -126,12 +126,18 @@ async def rps_broadcaster_loop():
         active_threat_nodes = []
         top_locations = []
         ai_insights = []
+        source_locations_str = ""
         if is_attack and attacker_ips:
             active_threat_nodes = await process_threat_ips(attacker_ips)
+<<<<<<< HEAD
             top_locations = [
                 f"{n['city']}, {n['country']}" if n.get('country') else n['city']
                 for n in active_threat_nodes if n.get('city') and n.get('city') != 'Unknown'
             ]
+=======
+            valid_locs = [f"{n.get('city', 'Unknown')} ({n.get('country', '')})" for n in active_threat_nodes if n.get('city') and n.get('city') != 'Unknown']
+            source_locations_str = ", ".join(valid_locs[:3]) if valid_locs else f"IPs: {', '.join(attacker_ips[:2])}"
+>>>>>>> 6300011 (Refactor theme to sleek charcoal space palette, simplify AI explanations, and clean up Windows venv binaries)
             try:
                 top_ip  = attacker_ips[0]
                 insight = generate_ip_confidence_score(top_ip)
@@ -140,9 +146,15 @@ async def rps_broadcaster_loop():
             except Exception:
                 pass
 
+<<<<<<< HEAD
         # AI explanation — generated during an attack with real source geolocation context
         ai_summary = generate_incident_explanation(
             status, total, attacker_ips, classification["legitimate_rps"], top_locations
+=======
+        # AI explanation — generated in simple language with origin sources
+        ai_summary = generate_incident_explanation(
+            status, total, attacker_ips, classification["legitimate_rps"], source_locations=source_locations_str
+>>>>>>> 6300011 (Refactor theme to sleek charcoal space palette, simplify AI explanations, and clean up Windows venv binaries)
         ) if is_attack else None
 
         # Save to DB (with 30s cooldown to avoid spam)
