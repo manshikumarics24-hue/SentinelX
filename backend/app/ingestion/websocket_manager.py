@@ -117,11 +117,6 @@ async def rps_broadcaster_loop():
 
         ai_summary = generate_incident_explanation(
             status, total, attacker_ips, classification["legitimate_rps"], top_locations
-=======
-        # AI explanation — generated in simple language with origin sources
-        ai_summary = generate_incident_explanation(
-            status, total, attacker_ips, classification["legitimate_rps"], source_locations=source_locations_str
->>>>>>> 6300011 (Refactor theme to sleek charcoal space palette, simplify AI explanations, and clean up Windows venv binaries)
         ) if is_attack else None
 
         if is_attack and (now - _last_incident_time) > COOLDOWN_SECONDS:
