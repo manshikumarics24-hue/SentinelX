@@ -241,8 +241,8 @@ const Globe3D = ({ isAnomaly, globeRef, searchedCity, activeThreatNodes = [], tr
         bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
         backgroundImageUrl={null}
         backgroundColor="rgba(0,0,0,0)"
-        atmosphereColor={isAnomaly ? '#8b0000' : '#1a4a8a'}
-        atmosphereAltitude={isAnomaly ? 0.22 : 0.13}
+        atmosphereColor={isAnomaly ? '#ef4444' : '#60a5fa'}
+        atmosphereAltitude={isAnomaly ? 0.18 : 0.10}
         /* ── Arcs ── */
         arcsData={arcsData}
         arcStartLat={d => d.startLat}

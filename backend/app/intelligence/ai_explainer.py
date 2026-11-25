@@ -5,6 +5,7 @@ from app.config import config
 
 client = OpenAI(api_key=config.OPENAI_API_KEY)
 
+<<<<<<< HEAD
 import time
 
 _quota_exhausted_until = 0
@@ -67,18 +68,27 @@ def _get_rule_based_explanation(status: str, peak_rps: int, attacker_ips: list, 
         )
 
 # ─── Incident Explanation (SOC narrative) ────────────────────────────────────
+=======
+# ─── Incident Explanation (SOC narrative in simple, clear language) ──────────
+>>>>>>> 6300011 (Refactor theme to sleek charcoal space palette, simplify AI explanations, and clean up Windows venv binaries)
 def generate_incident_explanation(
     status: str,
     peak_rps: int,
     attacker_ips: list,
     legitimate_rps: int = 0,
+<<<<<<< HEAD
     top_locations: list = None,
+=======
+    source_locations: str = "",
+>>>>>>> 6300011 (Refactor theme to sleek charcoal space palette, simplify AI explanations, and clean up Windows venv binaries)
 ) -> str:
     global _quota_exhausted_until
     source_count   = len(attacker_ips)
     malicious_rps  = max(peak_rps - legitimate_rps, 0)
     concentration  = round(malicious_rps / peak_rps * 100) if peak_rps else 0
+    origin_desc    = f" from {source_locations}" if source_locations else ""
 
+<<<<<<< HEAD
     now = time.time()
     # If no key, or key has previously exhausted quota within the last 5 minutes, use expert rule engine
     if not config.OPENAI_API_KEY or config.OPENAI_API_KEY in ("", "your-openai-key-here") or now < _quota_exhausted_until:
@@ -111,17 +121,21 @@ def generate_incident_explanation(
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=200,
+            max_tokens=220,
             temperature=0.3,
             timeout=3.0,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
+<<<<<<< HEAD
         # If quota exhausted or rate limited, remember for 1 hour so we don't stall the loop
         err_msg = str(e).lower()
         if "quota" in err_msg or "429" in err_msg or "billing" in err_msg or "credit" in err_msg:
             _quota_exhausted_until = now + 3600
         return _get_rule_based_explanation(status, peak_rps, attacker_ips, legitimate_rps, top_locations)
+=======
+        return f"[{status}] Alert detected at {peak_rps} RPS. (AI summary unavailable: {str(e)})"
+>>>>>>> 6300011 (Refactor theme to sleek charcoal space palette, simplify AI explanations, and clean up Windows venv binaries)
 
 
 # ─── IP Confidence Score ──────────────────────────────────────────────────────
