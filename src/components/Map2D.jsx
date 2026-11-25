@@ -1,62 +1,71 @@
 import React, { useMemo } from 'react';
 import { TARGET_SERVER } from '../mock/mockData.js';
 
-// Calibrated projection: lat/lng → SVG viewBox coordinates (1000 x 500) matching world_map.svg
-// Places Bengaluru (12.97°N, 77.59°E) precisely in Southern India (Karnataka)
+// Exact equirectangular projection matched 1:1 with public/world_map.svg
+// Generated directly from ne_110m_admin_0_countries.geojson:
+//   longitude [-180, 180] -> X [0, 1000]
+//   latitude  [85, -60]   -> Y [0, 500]
+// Places Bengaluru (12.9716°N, 77.5946°E) at (715.5, 248.4) inside Southern India.
+const LAT_MAX = 85;
+const LAT_MIN = -60;
+
 const project = (lat, lng) => {
-  // Longitude: prime meridian at 478 in 1000 viewBox
-  const x = 478 + (lng / 180.0) * 475.0;
-
-  // Latitude: Equator at 262 in 500 viewBox
-  const y = lat >= 0
-    ? 262.0 - (lat / 90.0) * 215.0
-    : 262.0 + (Math.abs(lat) / 90.0) * 235.0;
-
+  const clampedLat = Math.max(LAT_MIN, Math.min(LAT_MAX, lat));
+  const x = ((lng + 180) * 1000) / 360;
+  const y = ((LAT_MAX - clampedLat) * 500) / (LAT_MAX - LAT_MIN);
   return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
 };
 
 const Map2D = ({ isAnomaly, activeThreatNodes = [], trafficEvents = [] }) => {
   const targetPos = project(TARGET_SERVER.lat, TARGET_SERVER.lng);
 
+  // Deduplicate active source cities for subtle land markers
+  const activeSourceMarkers = useMemo(() => {
+    const seen = new Set();
+    const list = [];
+    trafficEvents.forEach(ev => {
+      if (!ev.sourceCity || seen.has(ev.sourceCity)) return;
+      seen.add(ev.sourceCity);
+      list.push(ev);
+    });
+    return list.slice(0, 14);
+  }, [trafficEvents]);
+
   // Build all arc paths: traffic events + active threat node arcs
   const allArcs = useMemo(() => {
     const arcs = [];
 
-    // 1. Continuous traffic event arcs from WebSocket
     trafficEvents.forEach((ev, i) => {
       const start = project(ev.startLat, ev.startLng);
       const end   = project(ev.endLat,   ev.endLng);
       const midX  = (start.x + end.x) / 2;
-      const midY  = Math.min(start.y, end.y) - Math.abs(end.x - start.x) * 0.15 - 15;
+      const midY  = Math.min(start.y, end.y) - Math.abs(end.x - start.x) * 0.14 - 14;
       arcs.push({
         id:          `evt_${i}`,
-        d:           `M ${start.x.toFixed(1)} ${start.y.toFixed(1)} Q ${midX.toFixed(1)} ${midY.toFixed(1)} ${end.x.toFixed(1)} ${end.y.toFixed(1)}`,
+        d:           `M ${start.x} ${start.y} Q ${midX.toFixed(1)} ${midY.toFixed(1)} ${end.x} ${end.y}`,
         color:       ev.isMalicious ? '#f87171' : '#34d399',
-        strokeWidth: ev.isMalicious ? 1.8 : 0.8,
-        opacity:     ev.isMalicious ? 0.85 : 0.5,
-        glow:        ev.isMalicious ? '#f87171' : '#34d399',
+        strokeWidth: ev.isMalicious ? 1.6 : 0.75,
+        opacity:     ev.isMalicious ? 0.85 : 0.48,
         dash:        ev.isMalicious ? '6 4' : '4 6',
       });
     });
 
-    // 2. Active threat node arcs (only during attack)
     activeThreatNodes.forEach((node, i) => {
       const start = project(node.lat, node.lng);
       const midX  = (start.x + targetPos.x) / 2;
-      const midY  = Math.min(start.y, targetPos.y) - 35;
+      const midY  = Math.min(start.y, targetPos.y) - 32;
       arcs.push({
         id:          `node_${i}`,
-        d:           `M ${start.x.toFixed(1)} ${start.y.toFixed(1)} Q ${midX.toFixed(1)} ${midY.toFixed(1)} ${targetPos.x.toFixed(1)} ${targetPos.y.toFixed(1)}`,
+        d:           `M ${start.x} ${start.y} Q ${midX.toFixed(1)} ${midY.toFixed(1)} ${targetPos.x} ${targetPos.y}`,
         color:       node.color ?? '#ef4444',
-        strokeWidth: 2.4,
+        strokeWidth: 2.2,
         opacity:     0.95,
-        glow:        node.color ?? '#ef4444',
         dash:        '8 4',
       });
     });
 
     return arcs;
-  }, [trafficEvents, activeThreatNodes, isAnomaly, targetPos.x, targetPos.y]);
+  }, [trafficEvents, activeThreatNodes, targetPos.x, targetPos.y]);
 
   return (
     <div
@@ -65,66 +74,49 @@ const Map2D = ({ isAnomaly, activeThreatNodes = [], trafficEvents = [] }) => {
         height: '100%',
         position: 'relative',
         overflow: 'hidden',
-        background: 'radial-gradient(ellipse at center, #020824 0%, #000010 100%)',
+        background: '#000000',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
       }}
     >
-      {/* Dark world map SVG background */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: 'url("/world_map.svg"), url("https://upload.wikimedia.org/wikipedia/commons/8/80/World_map_-_low_resolution.svg")',
-          backgroundSize: '100% 100%',
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'center',
-          filter: 'invert(1) opacity(0.09) hue-rotate(200deg)',
-          pointerEvents: 'none',
-        }}
-      />
-
-      {/* Grid lines */}
+      {/* Unified SVG: world map, grid, arcs, markers, and SOC Core label all share the exact 1000x500 viewBox */}
       <svg
         viewBox="0 0 1000 500"
-        preserveAspectRatio="none"
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', opacity: 0.08 }}
-      >
-        {/* Latitude lines */}
-        {[-60, -30, 0, 30, 60].map(lat => {
-          const y = ((90 - lat) * 500) / 180;
-          return <line key={`lat_${lat}`} x1="0" y1={y} x2="1000" y2={y} stroke="#60a5fa" strokeWidth="0.5" strokeDasharray="3 3" />;
-        })}
-        {/* Longitude lines */}
-        {[-120, -60, 0, 60, 120].map(lng => {
-          const x = ((lng + 180) * 1000) / 360;
-          return <line key={`lng_${lng}`} x1={x} y1="0" x2={x} y2="500" stroke="#60a5fa" strokeWidth="0.5" strokeDasharray="3 3" />;
-        })}
-      </svg>
-
-      {/* All arcs and markers SVG layer */}
-      <svg
-        viewBox="0 0 1000 500"
-        preserveAspectRatio="none"
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+        preserveAspectRatio="xMidYMid meet"
+        style={{ width: '100%', height: '100%', display: 'block' }}
       >
         <defs>
-          <filter id="glow-red" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="3" result="blur" />
+          <filter id="glow-red" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="2.5" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
-          <filter id="glow-green" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="2" result="blur" />
+          <filter id="glow-green" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="1.8" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
         </defs>
+
+        {/* GeoJSON-aligned world landmasses */}
+        <image href="/world_map.svg" x="0" y="0" width="1000" height="500" preserveAspectRatio="none" />
+
+        {/* Aligned Lat/Lng grid lines */}
+        <g opacity="0.1">
+          {[-45, -30, 0, 30, 60].map(lat => {
+            const y = ((LAT_MAX - lat) * 500) / (LAT_MAX - LAT_MIN);
+            return <line key={`lat_${lat}`} x1="0" y1={y} x2="1000" y2={y} stroke="#60a5fa" strokeWidth="0.5" strokeDasharray="3 3" />;
+          })}
+          {[-120, -60, 0, 60, 120].map(lng => {
+            const x = ((lng + 180) * 1000) / 360;
+            return <line key={`lng_${lng}`} x1={x} y1="0" x2={x} y2="500" stroke="#60a5fa" strokeWidth="0.5" strokeDasharray="3 3" />;
+          })}
+        </g>
 
         {/* Traffic arcs */}
         {allArcs.map(arc => (
@@ -140,6 +132,21 @@ const Map2D = ({ isAnomaly, activeThreatNodes = [], trafficEvents = [] }) => {
           />
         ))}
 
+        {/* Active normal/traffic origin dots on land */}
+        {activeSourceMarkers.map((ev, i) => {
+          const pos = project(ev.startLat, ev.startLng);
+          return (
+            <circle
+              key={`src_${i}`}
+              cx={pos.x}
+              cy={pos.y}
+              r={ev.isMalicious ? 3.2 : 2}
+              fill={ev.isMalicious ? '#f87171' : '#34d399'}
+              opacity={0.8}
+            />
+          );
+        })}
+
         {/* Threat node markers */}
         {activeThreatNodes.map((node, i) => {
           const pos = project(node.lat, node.lng);
@@ -148,26 +155,26 @@ const Map2D = ({ isAnomaly, activeThreatNodes = [], trafficEvents = [] }) => {
               <circle
                 cx={pos.x}
                 cy={pos.y}
-                r={6}
+                r={5}
                 fill={node.color ?? '#ef4444'}
-                opacity={0.9}
+                opacity={0.95}
                 filter="url(#glow-red)"
               />
               <circle
                 cx={pos.x}
                 cy={pos.y}
-                r={12}
+                r={10}
                 fill="none"
                 stroke={node.color ?? '#ef4444'}
-                strokeWidth={1}
-                opacity={0.4}
+                strokeWidth={0.9}
+                opacity={0.45}
               />
               <text
                 x={pos.x}
-                y={pos.y - 10}
+                y={pos.y - 9}
                 textAnchor="middle"
                 fill="#fca5a5"
-                fontSize="10"
+                fontSize="8.5"
                 fontWeight="700"
                 fontFamily="JetBrains Mono, monospace"
               >
@@ -177,86 +184,87 @@ const Map2D = ({ isAnomaly, activeThreatNodes = [], trafficEvents = [] }) => {
           );
         })}
 
-        {/* Target server (SOC Core) */}
+        {/* Target server (SOC Core — Bengaluru) */}
         <circle
           cx={targetPos.x}
           cy={targetPos.y}
-          r={isAnomaly ? 9 : 6}
+          r={isAnomaly ? 7 : 4.5}
           fill={isAnomaly ? '#ef4444' : '#3b82f6'}
           opacity={0.95}
           filter={isAnomaly ? 'url(#glow-red)' : 'url(#glow-green)'}
         />
-        {isAnomaly && (
-          <circle
-            cx={targetPos.x}
-            cy={targetPos.y}
-            r={18}
-            fill="none"
-            stroke="#ef4444"
-            strokeWidth={1.5}
-            opacity={0.5}
+        <circle
+          cx={targetPos.x}
+          cy={targetPos.y}
+          r={isAnomaly ? 14 : 9}
+          fill="none"
+          stroke={isAnomaly ? '#ef4444' : '#60a5fa'}
+          strokeWidth={1.1}
+          opacity={0.5}
+        />
+
+        {/* SOC Core label locked to SVG coordinates */}
+        <g transform={`translate(${targetPos.x}, ${targetPos.y + 16})`}>
+          <rect
+            x="-58"
+            y="-7"
+            width="116"
+            height="14"
+            rx="3"
+            fill="rgba(5,5,8,0.9)"
+            stroke={isAnomaly ? 'rgba(239,68,68,0.55)' : 'rgba(96,165,250,0.45)'}
+            strokeWidth="0.7"
           />
-        )}
+          <text
+            x="0"
+            y="2.5"
+            textAnchor="middle"
+            fill={isAnomaly ? '#fca5a5' : '#93c5fd'}
+            fontSize="7.5"
+            fontWeight="700"
+            fontFamily="Inter, sans-serif"
+            letterSpacing="0.4"
+          >
+            {TARGET_SERVER.name}
+          </text>
+        </g>
       </svg>
 
-      {/* SOC Core label */}
-      <div
-        style={{
-          position: 'absolute',
-          left: `${(targetPos.x / 1000) * 100}%`,
-          top: `${((targetPos.y / 500) * 100) + 2.5}%`,
-          transform: 'translateX(-50%)',
-          background: 'rgba(0,2,12,0.85)',
-          border: `1px solid ${isAnomaly ? 'rgba(239,68,68,0.4)' : 'rgba(96,165,250,0.3)'}`,
-          borderRadius: 3,
-          padding: '2px 6px',
-          fontSize: 9,
-          fontWeight: 700,
-          color: isAnomaly ? '#f87171' : '#60a5fa',
-          whiteSpace: 'nowrap',
-          letterSpacing: '0.06em',
-          pointerEvents: 'none',
-          backdropFilter: 'blur(6px)',
-        }}
-      >
-        {TARGET_SERVER.name}
-      </div>
-
-      {/* Bottom and top gradients */}
+      {/* Bottom and top subtle vignettes */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
-          background: 'linear-gradient(to top, #000010 0%, transparent 20%, transparent 80%, #000010 100%)',
+          background: 'linear-gradient(to top, #000000 0%, transparent 16%, transparent 84%, #000000 100%)',
           pointerEvents: 'none',
         }}
       />
 
-      {/* Live stats overlay */}
+      {/* Live legend overlay */}
       <div
         style={{
           position: 'absolute',
           top: 70,
           left: 16,
-          background: 'rgba(0,2,12,0.8)',
-          border: '1px solid rgba(96,165,250,0.12)',
+          background: 'rgba(8,10,14,0.88)',
+          border: '1px solid rgba(255,255,255,0.1)',
           borderRadius: 6,
           padding: '8px 12px',
           backdropFilter: 'blur(12px)',
           pointerEvents: 'none',
         }}
       >
-        <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(148,163,184,0.6)', textTransform: 'uppercase', marginBottom: 4 }}>
-          2D Flat View
+        <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(148,163,184,0.75)', textTransform: 'uppercase', marginBottom: 4 }}>
+          2D Tactical Map (WGS84 Exact)
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <div style={{ width: 16, height: 1.5, background: '#34d399', borderRadius: 1 }} />
-            <span style={{ fontSize: 8, color: 'rgba(148,163,184,0.7)' }}>Normal</span>
+            <span style={{ fontSize: 8, color: 'rgba(203,213,225,0.85)' }}>Normal</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <div style={{ width: 16, height: 1.5, background: '#f87171', borderRadius: 1 }} />
-            <span style={{ fontSize: 8, color: 'rgba(148,163,184,0.7)' }}>Malicious</span>
+            <span style={{ fontSize: 8, color: 'rgba(203,213,225,0.85)' }}>Malicious</span>
           </div>
         </div>
       </div>

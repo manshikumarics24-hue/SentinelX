@@ -9,6 +9,7 @@ from app.ingestion.redis_client import get_current_metrics
 from app.intelligence.database import SessionLocal, engine
 from app.intelligence.models import Base, Incident
 from app.intelligence.ai_explainer import generate_incident_explanation
+from app.intelligence.threat_intel import _prefix_geo_lookup
 from app.intelligence.traffic_classifier import classify_traffic
 
 # Create tables in Postgres automatically
@@ -35,9 +36,14 @@ def run_anomaly_detector():
                     
             if status != "NORMAL":
                 print(f"\n🚨 ANOMALY DETECTED! Status: {status} | Peak RPS: {total}. Triggering AI Explainer & Postgres Log...")
-                
+                top_ips_for_loc = attacker_ips if attacker_ips else [ip for ip, _ in ip_dist[:3]]
+                top_locs = list(dict.fromkeys(
+                    f"{g['city']}, {g['country']}"
+                    for g in (_prefix_geo_lookup(ip) for ip in top_ips_for_loc[:5])
+                    if g.get("city")
+                ))
                 ai_summary = generate_incident_explanation(
-                    status, total, attacker_ips, classification.get("legitimate_rps", 0)
+                    status, total, attacker_ips, classification.get("legitimate_rps", 0), top_locs
                 )
                 
                 db = SessionLocal()

@@ -45,10 +45,10 @@ const GlobeControlsOverlay = ({
       {/* 3D / 2D toggle */}
       <div
         style={{
-          background: 'rgba(0, 3, 15, 0.82)',
+          background: 'rgba(8, 10, 14, 0.9)',
           backdropFilter: 'blur(18px)',
           WebkitBackdropFilter: 'blur(18px)',
-          border: '1px solid rgba(96, 165, 250, 0.12)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
           borderRadius: 8,
           overflow: 'hidden',
           display: 'flex',
@@ -104,10 +104,10 @@ const GlobeControlsOverlay = ({
       {/* Zoom controls */}
       <div
         style={{
-          background: 'rgba(0, 3, 15, 0.82)',
+          background: 'rgba(8, 10, 14, 0.9)',
           backdropFilter: 'blur(18px)',
           WebkitBackdropFilter: 'blur(18px)',
-          border: '1px solid rgba(96, 165, 250, 0.12)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
           borderRadius: 8,
           overflow: 'hidden',
           display: 'flex',
@@ -153,10 +153,10 @@ const GlobeControlsOverlay = ({
       {/* Live RPS readout */}
       <div
         style={{
-          background: 'rgba(0, 3, 15, 0.82)',
+          background: 'rgba(8, 10, 14, 0.9)',
           backdropFilter: 'blur(18px)',
           WebkitBackdropFilter: 'blur(18px)',
-          border: `1px solid ${isAnomaly ? 'rgba(248,113,113,0.25)' : 'rgba(96,165,250,0.12)'}`,
+          border: `1px solid ${isAnomaly ? 'rgba(248,113,113,0.3)' : 'rgba(255,255,255,0.1)'}`,
           borderRadius: 8,
           padding: '6px 0',
           display: 'flex',

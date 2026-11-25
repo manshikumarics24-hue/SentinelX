@@ -24,9 +24,9 @@ Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$root\backend
 
 Start-Sleep -Seconds 2
 
-# 4. Traffic Simulator
-Write-Host "[4/5] Launching Traffic Simulator..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$root\backend'; `$env:PYTHONIOENCODING='utf-8'; .\env\Scripts\Activate.ps1; python simulator\traffic_simulator.py"
+# 4. Real-Data Traffic Replayer
+Write-Host "[4/5] Launching Real-Data Traffic Replayer..." -ForegroundColor Yellow
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$root\backend'; `$env:PYTHONIOENCODING='utf-8'; .\env\Scripts\Activate.ps1; python simulator\real_data_replay.py"
 
 Start-Sleep -Seconds 2
 

@@ -18,7 +18,7 @@
   }
 
   body {
-    background-color: #000010;
+    background-color: #000000;
     color: #e2eaf4;
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -44,12 +44,12 @@
 
   /* ── Cyber glass panels ─────────────────────────────── */
   .cyber-panel {
-    background: rgba(0, 5, 20, 0.75);
+    background: rgba(8, 10, 14, 0.85);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
-    border: 1px solid rgba(96, 165, 250, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255,255,255,0.04);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255,255,255,0.04);
   }
 
   .cyber-panel-hover {
@@ -61,22 +61,22 @@
   }
 
   .cyber-panel-dark {
-    background: rgba(0, 2, 12, 0.85);
+    background: rgba(6, 7, 10, 0.92);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.9);
   }
 
   /* Legacy glass panel (kept for compatibility) */
   .glass-panel {
-    background: rgba(0, 5, 20, 0.7);
+    background: rgba(8, 10, 14, 0.8);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(96, 165, 250, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.09);
     border-radius: 8px;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.7);
   }
 
   /* ── Status indicators ──────────────────────────────── */
@@ -262,7 +262,7 @@
     left: 0;
     right: 0;
     height: 140px;
-    background: linear-gradient(to top, #000010 0%, transparent 100%);
+    background: linear-gradient(to top, #000000 0%, transparent 100%);
     pointer-events: none;
     z-index: 5;
   }

@@ -21,10 +21,10 @@ import SettingsView from './views/SettingsView.jsx';
 /* ── Data ────────────────────────────────────────────────────────────── */
 import useTrafficWebSocket from './services/websocket.js';
 import { getIncidents, getStats } from './services/api.js';
-import { INITIAL_TRAFFIC_HISTORY, TARGET_SERVER, STATS } from './mock/mockData.js';
+import { TARGET_SERVER } from './mock/mockData.js';
 
 const App = () => {
-  const [trafficHistory, setTrafficHistory] = useState(INITIAL_TRAFFIC_HISTORY);
+  const [trafficHistory, setTrafficHistory] = useState([]);
   const [incidents, setIncidents]           = useState([]);
   const [backendStats, setBackendStats]     = useState(null);
   const [peakRps, setPeakRps]               = useState(0);
@@ -66,9 +66,9 @@ const App = () => {
       [...prev, {
         t:        Date.now(),
         rps:      lastJsonMessage.current_rps ?? 0,
-        baseline: lastJsonMessage.baseline_rps ?? 50,
+        baseline: lastJsonMessage.baseline_rps ?? 70,
         status:   lastJsonMessage.status ?? 'NORMAL',
-      }].slice(-60),
+      }].slice(-300),
     );
     if ((lastJsonMessage.current_rps ?? 0) > peakRps) {
       setPeakRps(lastJsonMessage.current_rps ?? 0);
@@ -109,7 +109,7 @@ const App = () => {
   // ── Render sub-view for drawer ─────────────────────────────────────────
   const renderDrawerContent = () => {
     switch (drawerView) {
-      case 'Dashboard': return <DashboardView backendStats={backendStats} incidents={incidents} />;
+      case 'Dashboard': return <DashboardView backendStats={backendStats} incidents={incidents} trafficHistory={trafficHistory} />;
       case 'Traffic':   return <TrafficView trafficHistory={trafficHistory} currentRps={currentRps} />;
       case 'Security':  return <SecurityView incidents={incidents} />;
       case 'Alerts':    return <AlertsView incidents={incidents} onResolve={fetchIncidents} />;
@@ -124,7 +124,7 @@ const App = () => {
         width: '100vw',
         height: '100vh',
         overflow: 'hidden',
-        background: '#000010',
+        background: '#000000',
         position: 'relative',
       }}
     >
@@ -210,22 +210,31 @@ const App = () => {
               letterSpacing: '0.04em',
             }}
           >
-            {currentRps} RPS (+{Math.max(0, Math.round(((currentRps - 70) / 70) * 100))}% over normal)
+            {currentRps} RPS (+{Math.max(0, Math.round(((currentRps - (lastJsonMessage?.baseline_rps ?? 70)) / (lastJsonMessage?.baseline_rps ?? 70)) * 100))}% over normal)
           </span>
 
           <div style={{ height: 14, width: 1, background: 'rgba(239,68,68,0.3)' }} />
 
-          {/* Source Location */}
+          {/* Source Location with flag icon */}
           <span
             style={{
               fontSize: 10,
-              color: 'rgba(226,234,244,0.9)',
+              color: 'rgba(226,234,244,0.95)',
               display: 'flex',
               alignItems: 'center',
-              gap: 4,
+              gap: 5,
             }}
           >
             <span style={{ color: '#f87171', fontWeight: 600 }}>SOURCE:</span>
+            {lastJsonMessage?.attack_origin?.cc && (
+              <img
+                src={`https://flagcdn.com/20x15/${lastJsonMessage.attack_origin.cc.toLowerCase()}.png`}
+                alt={lastJsonMessage.attack_origin.cc}
+                width={16}
+                height={12}
+                style={{ borderRadius: 2 }}
+              />
+            )}
             {lastJsonMessage?.top_locations?.[0] || lastJsonMessage?.attack_origin?.city || (lastJsonMessage?.attacker_ips?.[0] ? `IP: ${lastJsonMessage.attacker_ips[0]}` : 'Distributed')}
           </span>
 
@@ -283,11 +292,11 @@ const App = () => {
             zIndex: 80,
             display: 'flex',
             flexDirection: 'column',
-            background: 'rgba(0, 2, 12, 0.94)',
+            background: 'rgba(6, 7, 10, 0.95)',
             backdropFilter: 'blur(24px)',
             WebkitBackdropFilter: 'blur(24px)',
-            borderLeft: '1px solid rgba(96,165,250,0.12)',
-            boxShadow: '-8px 0 40px rgba(0,0,0,0.6)',
+            borderLeft: '1px solid rgba(255,255,255,0.1)',
+            boxShadow: '-8px 0 40px rgba(0,0,0,0.85)',
           }}
         >
           {/* Drawer header */}
@@ -297,9 +306,9 @@ const App = () => {
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '10px 20px',
-              borderBottom: '1px solid rgba(96,165,250,0.1)',
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
               flexShrink: 0,
-              background: 'rgba(0,2,12,0.8)',
+              background: 'rgba(4,5,8,0.9)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

@@ -12,17 +12,17 @@ const THREAT_CATEGORIES = [
   { id: 'SPAM', label: 'SPAM', color: '#fb923c', description: 'Anti-Spam' },
 ];
 
-// Initial seed counts to match reference image aesthetic
+// Start from zero — counts will grow dynamically from real traffic events
 const SEED_COUNTS = {
-  OAS:  1009283,
-  ODS:  880715,
-  MAV:  131723,
-  WAV:  503121,
-  IDS:  440010,
-  VUL:  5671,
-  KAS:  2087662,
+  OAS:  0,
+  ODS:  0,
+  MAV:  0,
+  WAV:  0,
+  IDS:  0,
+  VUL:  0,
+  KAS:  0,
   BAD:  0,
-  SPAM: 20631,
+  SPAM: 0,
 };
 
 const BottomThreatBar = ({ trafficEvents = [], isAnomaly, activeCategory, onCategoryClick }) => {
@@ -58,20 +58,7 @@ const BottomThreatBar = ({ trafficEvents = [], isAnomaly, activeCategory, onCate
     }
   }, [trafficEvents]);
 
-  // Passive ambient tick — counts slowly rise even without events
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCounts(prev => {
-        const cats = Object.keys(SEED_COUNTS);
-        const randCat = cats[Math.floor(Math.random() * cats.length)];
-        return {
-          ...prev,
-          [randCat]: (prev[randCat] ?? 0) + Math.floor(Math.random() * 5),
-        };
-      });
-    }, 1200);
-    return () => clearInterval(interval);
-  }, []);
+  // No ambient tick — counts only grow from real traffic events
 
   const totalEvents = Object.values(counts).reduce((a, b) => a + b, 0);
 
@@ -91,10 +78,10 @@ const BottomThreatBar = ({ trafficEvents = [], isAnomaly, activeCategory, onCate
         zIndex: 100,
         display: 'flex',
         flexDirection: 'column',
-        background: 'rgba(0, 2, 12, 0.82)',
+        background: 'rgba(5, 6, 8, 0.92)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
-        borderTop: '1px solid rgba(96, 165, 250, 0.1)',
+        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
       }}
     >
       {/* Total row */}

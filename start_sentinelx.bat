@@ -17,8 +17,8 @@ start "SentinelX - Anomaly Detector" cmd /k "cd /d %~dp0backend && set PYTHONIOE
 
 timeout /t 2 /nobreak >nul
 
-echo [4/5] Launching Traffic Simulator...
-start "SentinelX - Traffic Simulator" cmd /k "cd /d %~dp0backend && set PYTHONIOENCODING=utf-8 && env\Scripts\activate && python simulator\traffic_simulator.py"
+echo [4/5] Launching Real-Data Traffic Replayer...
+start "SentinelX - Real Data Replayer" cmd /k "cd /d %~dp0backend && set PYTHONIOENCODING=utf-8 && env\Scripts\activate && python simulator\real_data_replay.py"
 
 timeout /t 2 /nobreak >nul
 

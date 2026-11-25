@@ -90,7 +90,7 @@ def get_stats(db: Session = Depends(get_db)):
     max_rps = db.query(func.max(Incident.total_rps)).scalar() or 0
     avg_rps = db.query(func.avg(Incident.total_rps)).scalar() or 0
 
-    # Current live RPS from Redis (real-time)
+    # Current live RPS and active source IPs from Redis (real-time)
     metrics = get_current_metrics()
 
     return {
@@ -99,8 +99,7 @@ def get_stats(db: Session = Depends(get_db)):
         "peak_rps_ever": max_rps,
         "avg_incident_rps": round(float(avg_rps), 1),
         "current_rps": metrics["total_rps"],
-        "active_nodes": 8,          # static for now — integrate with infra later
-        "uptime_pct": "99.97%",     # static for now
+        "active_nodes": len(metrics["ip_distribution"]),
     }
 
 

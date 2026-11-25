@@ -230,7 +230,7 @@ const Globe3D = ({ isAnomaly, globeRef, searchedCity, activeThreatNodes = [], tr
       id="globe-canvas-wrapper"
       style={{
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0,
-        background: 'radial-gradient(ellipse at center, #020824 0%, #000010 100%)',
+        background: 'radial-gradient(ellipse at center, #010412 0%, #000000 100%)',
       }}
     >
       <Globe

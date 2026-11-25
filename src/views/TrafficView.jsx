@@ -1,40 +1,53 @@
 import React, { useState, useMemo } from 'react';
 import {
-  AreaChart, Area, BarChart, Bar, Cell,
+  AreaChart, Area,
   ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-import { Activity, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
-/**
- * TrafficView
- * `trafficHistory` — rolling 60-point array from WebSocket, shape: { t, rps, baseline, status }
- * `currentRps`     — current RPS integer from WebSocket
- */
+// Protocol distribution estimated dynamically from live traffic status
+const getProtocols = (history) => {
+  const total = history.length || 1;
+  const attackPoints = history.filter(d => d.status !== 'NORMAL' && d.status !== 'FLASH_SALE').length;
+  const attackRatio = attackPoints / total;
+  const https = Math.round(68 - attackRatio * 20);
+  const http  = Math.round(12 + attackRatio * 15);
+  const dns   = Math.round(8  + attackRatio * 10);
+  const ssh   = 5;
+  const other = Math.max(100 - https - http - dns - ssh, 2);
+  return [
+    { name: 'HTTPS', value: https, color: '#2563eb' },
+    { name: 'HTTP',  value: http,  color: '#60a5fa' },
+    { name: 'DNS',   value: dns,   color: '#16a34a' },
+    { name: 'SSH',   value: ssh,   color: '#f59e0b' },
+    { name: 'Other', value: other, color: '#94a3b8' },
+  ];
+};
 
-const protocols = [
-  { name: 'HTTPS', value: 68, color: '#2563eb' },
-  { name: 'HTTP',  value: 12, color: '#60a5fa' },
-  { name: 'DNS',   value: 8,  color: '#16a34a' },
-  { name: 'SSH',   value: 5,  color: '#f59e0b' },
-  { name: 'Other', value: 7,  color: '#94a3b8' },
-];
-
-// Fixed endpoint list — these match our real backend routes
+// Real backend API routes powered by FastAPI
 const topEndpoints = [
-  { path: '/ws/traffic',       method: 'WS',   desc: 'WebSocket stream',       status: 'live' },
-  { path: '/api/traffic',      method: 'POST', desc: 'Traffic ingestion',       status: 'live' },
-  { path: '/api/incidents',    method: 'GET',  desc: 'Incident log',            status: 'live' },
-  { path: '/api/stats',        method: 'GET',  desc: 'Aggregate statistics',    status: 'live' },
-  { path: '/api/metrics/live', method: 'GET',  desc: 'Snapshot metrics',        status: 'live' },
+  { path: '/ws/traffic',       method: 'WS',   desc: 'Live WebSocket stream',  status: 'live' },
+  { path: '/api/traffic',      method: 'POST', desc: 'Request ingestion',      status: 'live' },
+  { path: '/api/incidents',    method: 'GET',  desc: 'Incident log (DB)',      status: 'live' },
+  { path: '/api/stats',        method: 'GET',  desc: 'Aggregate statistics',   status: 'live' },
+  { path: '/api/metrics/live', method: 'GET',  desc: 'Live Redis snapshot',    status: 'live' },
 ];
 
 const statusColor = { live: '#16a34a', warning: '#f59e0b', degraded: '#ef4444' };
 
-const TrafficView = ({ trafficHistory = [], currentRps = 0 }) => {
-  const [timeRange, setTimeRange] = useState('live');
+const WINDOW_LIMITS = { live: 30, '1m': 60, '5m': 300 };
 
-  // Convert trafficHistory to chart-friendly format
-  const chartData = trafficHistory.map(d => ({
+const TrafficView = ({ trafficHistory = [], currentRps = 0 }) => {
+  const [timeRange, setTimeRange] = useState('1m');
+
+  const windowedHistory = useMemo(() => {
+    const limit = WINDOW_LIMITS[timeRange] ?? 60;
+    return trafficHistory.slice(-limit);
+  }, [trafficHistory, timeRange]);
+
+  const protocols = useMemo(() => getProtocols(windowedHistory), [windowedHistory]);
+
+  const chartData = windowedHistory.map(d => ({
     time: new Date(d.t).toLocaleTimeString('en-IN', {
       hour: '2-digit',
       minute: '2-digit',
@@ -42,21 +55,27 @@ const TrafficView = ({ trafficHistory = [], currentRps = 0 }) => {
       hour12: false,
     }),
     rps:      d.rps ?? 0,
-    baseline: d.baseline ?? 20,
+    baseline: d.baseline ?? 70,
     isAttack: d.status !== 'NORMAL' && d.status !== 'FLASH_SALE',
   }));
 
-  const maxRps   = Math.max(...chartData.map(d => d.rps), 0);
-  const avgRps   = chartData.length
+  const maxRps = Math.max(...chartData.map(d => d.rps), 0);
+  const avgRps = chartData.length
     ? Math.round(chartData.reduce((s, d) => s + d.rps, 0) / chartData.length)
     : 0;
+  const currentBaseline = chartData[chartData.length - 1]?.baseline ?? 70;
 
   const bandwidthStats = [
-    { label: 'Current RPS',   value: currentRps, change: '+live', up: true },
-    { label: 'Avg RPS (60s)', value: avgRps,      change: 'rolling avg', up: null },
-    { label: 'Peak RPS (session)', value: maxRps, change: 'session high', up: null },
-    { label: 'Baseline',      value: 20,          change: 'normal threshold', up: null },
+    { label: 'Current RPS',        value: currentRps,      change: '+live',            up: true },
+    { label: `Avg RPS (${timeRange})`, value: avgRps,      change: `${chartData.length}s window`, up: null },
+    { label: 'Peak RPS (window)',  value: maxRps,          change: 'window high',      up: null },
+    { label: 'Baseline',           value: currentBaseline, change: 'normal threshold', up: null },
   ];
+
+  const cardStyle = {
+    background: 'rgba(10, 12, 16, 0.88)',
+    border: '1px solid rgba(255,255,255,0.08)',
+  };
 
   return (
     <div className="flex-1 overflow-y-auto p-6 animate-fade-up" style={{ background: 'transparent' }}>
@@ -65,12 +84,12 @@ const TrafficView = ({ trafficHistory = [], currentRps = 0 }) => {
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 700, color: '#f8fafc' }}>Network Traffic</h2>
           <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
-            Live WebSocket stream — {chartData.length} data points
+            Live WebSocket stream — {chartData.length} data points ({timeRange} window)
           </p>
         </div>
         <div
           className="flex items-center gap-1 rounded-lg p-0.5"
-          style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(255,255,255,0.05)' }}
+          style={cardStyle}
         >
           {['live', '1m', '5m'].map(t => (
             <button
@@ -97,11 +116,7 @@ const TrafficView = ({ trafficHistory = [], currentRps = 0 }) => {
       {/* Stats bar */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         {bandwidthStats.map(s => (
-          <div
-            key={s.label}
-            className="rounded-xl p-4"
-            style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(255,255,255,0.05)' }}
-          >
+          <div key={s.label} className="rounded-xl p-4" style={cardStyle}>
             <span
               style={{
                 fontSize: 10,
@@ -124,7 +139,7 @@ const TrafficView = ({ trafficHistory = [], currentRps = 0 }) => {
               >
                 {s.value}
               </span>
-              {s.up !== null && (
+              {s.up !== null ? (
                 <span
                   style={{
                     fontSize: 10,
@@ -138,8 +153,7 @@ const TrafficView = ({ trafficHistory = [], currentRps = 0 }) => {
                   {s.up ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
                   {s.change}
                 </span>
-              )}
-              {s.up === null && (
+              ) : (
                 <span style={{ fontSize: 10, color: '#94a3b8' }}>{s.change}</span>
               )}
             </div>
@@ -148,10 +162,7 @@ const TrafficView = ({ trafficHistory = [], currentRps = 0 }) => {
       </div>
 
       {/* Live RPS area chart */}
-      <div
-        className="rounded-xl p-4 mb-6"
-        style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(255,255,255,0.05)' }}
-      >
+      <div className="rounded-xl p-4 mb-6" style={cardStyle}>
         <h3 style={{ fontSize: 13, fontWeight: 700, color: '#f8fafc', marginBottom: 16 }}>
           Live RPS Stream (WebSocket)
         </h3>
@@ -160,34 +171,33 @@ const TrafficView = ({ trafficHistory = [], currentRps = 0 }) => {
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="rpsGradTV" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2563eb" stopOpacity={0.18} />
+                  <stop offset="0%" stopColor="#2563eb" stopOpacity={0.22} />
                   <stop offset="100%" stopColor="#2563eb" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
               <XAxis
                 dataKey="time"
                 tick={{ fontSize: 10, fill: '#94a3b8' }}
                 tickLine={false}
                 axisLine={false}
-                interval={9}
+                interval="preserveStartEnd"
               />
               <YAxis
                 tick={{ fontSize: 10, fill: '#94a3b8' }}
                 tickLine={false}
                 axisLine={false}
-                domain={[0, Math.max(maxRps + 20, 50)]}
+                domain={[0, Math.max(maxRps + 20, 80)]}
               />
               <Tooltip
                 contentStyle={{
-                  background: 'rgba(15,23,42,0.6)',
-                  border: '1px solid rgba(255,255,255,0.05)',
+                  background: 'rgba(10,12,16,0.95)',
+                  border: '1px solid rgba(255,255,255,0.1)',
                   borderRadius: 8,
                   fontSize: 12,
                 }}
                 formatter={(val, name) => [`${val} RPS`, name === 'rps' ? 'Traffic' : 'Baseline']}
               />
-              {/* Baseline reference line */}
               <Area
                 type="monotone"
                 dataKey="baseline"
@@ -198,7 +208,6 @@ const TrafficView = ({ trafficHistory = [], currentRps = 0 }) => {
                 fill="transparent"
                 dot={false}
               />
-              {/* Live RPS */}
               <Area
                 type="monotone"
                 dataKey="rps"
@@ -216,30 +225,20 @@ const TrafficView = ({ trafficHistory = [], currentRps = 0 }) => {
 
       <div className="grid grid-cols-2 gap-4">
         {/* Protocol breakdown */}
-        <div
-          className="rounded-xl p-4"
-          style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(255,255,255,0.05)' }}
-        >
+        <div className="rounded-xl p-4" style={cardStyle}>
           <h3 style={{ fontSize: 13, fontWeight: 700, color: '#f8fafc', marginBottom: 12 }}>
-            Protocol Distribution
+            Protocol Distribution (Estimated)
           </h3>
           <div className="flex flex-col gap-3">
             {protocols.map(p => (
               <div key={p.name}>
                 <div className="flex justify-between mb-1">
                   <span style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 500 }}>{p.name}</span>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color: '#f8fafc',
-                      fontWeight: 600,
-                      fontFamily: 'JetBrains Mono, monospace',
-                    }}
-                  >
+                  <span style={{ fontSize: 12, color: '#f8fafc', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>
                     {p.value}%
                   </span>
                 </div>
-                <div style={{ height: 6, borderRadius: 3, background: '#f1f5f9', overflow: 'hidden' }}>
+                <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
                   <div
                     style={{
                       height: '100%',
@@ -256,10 +255,7 @@ const TrafficView = ({ trafficHistory = [], currentRps = 0 }) => {
         </div>
 
         {/* Backend endpoints status */}
-        <div
-          className="rounded-xl p-4"
-          style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(255,255,255,0.05)' }}
-        >
+        <div className="rounded-xl p-4" style={cardStyle}>
           <h3 style={{ fontSize: 13, fontWeight: 700, color: '#f8fafc', marginBottom: 12 }}>
             Backend Endpoints
           </h3>
@@ -268,7 +264,7 @@ const TrafficView = ({ trafficHistory = [], currentRps = 0 }) => {
               <div
                 key={i}
                 className="flex items-center gap-3 py-2"
-                style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+                style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
               >
                 <span
                   style={{
@@ -277,34 +273,21 @@ const TrafficView = ({ trafficHistory = [], currentRps = 0 }) => {
                     padding: '2px 6px',
                     borderRadius: 4,
                     background:
-                      e.method === 'GET'  ? 'rgba(37,99,235,0.1)'  :
-                      e.method === 'POST' ? 'rgba(245,158,11,0.1)' :
-                                           'rgba(22,163,74,0.1)',
+                      e.method === 'GET'  ? 'rgba(37,99,235,0.12)'  :
+                      e.method === 'POST' ? 'rgba(245,158,11,0.12)' :
+                                            'rgba(22,163,74,0.12)',
                     color:
-                      e.method === 'GET'  ? '#2563eb' :
-                      e.method === 'POST' ? '#f59e0b' :
-                                           '#16a34a',
+                      e.method === 'GET'  ? '#60a5fa' :
+                      e.method === 'POST' ? '#fbbf24' :
+                                            '#34d399',
                   }}
                 >
                   {e.method}
                 </span>
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: '#e2e8f0',
-                    fontFamily: 'JetBrains Mono, monospace',
-                    flex: 1,
-                  }}
-                >
+                <span style={{ fontSize: 11, color: '#e2e8f0', fontFamily: 'JetBrains Mono, monospace', flex: 1 }}>
                   {e.path}
                 </span>
-                <span
-                  style={{
-                    fontSize: 10,
-                    color: statusColor[e.status] ?? '#94a3b8',
-                    fontWeight: 600,
-                  }}
-                >
+                <span style={{ fontSize: 10, color: statusColor[e.status] ?? '#94a3b8', fontWeight: 600 }}>
                   ● {e.status}
                 </span>
               </div>

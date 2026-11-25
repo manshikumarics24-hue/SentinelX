@@ -3,52 +3,14 @@ from typing import List
 import asyncio
 import json
 import time
-import random
 from app.ingestion.redis_client import get_current_metrics
 from app.intelligence.database import SessionLocal
 from app.intelligence.models import Incident
 from app.intelligence.ai_explainer import generate_incident_explanation, generate_ip_confidence_score
-from app.intelligence.threat_intel import process_threat_ips
+from app.intelligence.threat_intel import process_threat_ips, get_geolocation
 from app.intelligence.traffic_classifier import classify_traffic
 
-# ─── Named source cities (real lat/lng + label) ───────────────────────────────
-# Used instead of random coords so the globe shows REAL named source locations.
-WORLD_CITIES = [
-    {"city": "New York",      "country": "US", "lat": 40.7128,  "lng": -74.0060},
-    {"city": "Los Angeles",   "country": "US", "lat": 34.0522,  "lng": -118.2437},
-    {"city": "Chicago",       "country": "US", "lat": 41.8781,  "lng": -87.6298},
-    {"city": "London",        "country": "GB", "lat": 51.5074,  "lng": -0.1278},
-    {"city": "Frankfurt",     "country": "DE", "lat": 50.1109,  "lng": 8.6821},
-    {"city": "Paris",         "country": "FR", "lat": 48.8566,  "lng": 2.3522},
-    {"city": "Moscow",        "country": "RU", "lat": 55.7558,  "lng": 37.6173},
-    {"city": "Amsterdam",     "country": "NL", "lat": 52.3676,  "lng": 4.9041},
-    {"city": "Tokyo",         "country": "JP", "lat": 35.6762,  "lng": 139.6503},
-    {"city": "Seoul",         "country": "KR", "lat": 37.5665,  "lng": 126.9780},
-    {"city": "Shanghai",      "country": "CN", "lat": 31.2304,  "lng": 121.4737},
-    {"city": "Beijing",       "country": "CN", "lat": 39.9042,  "lng": 116.4074},
-    {"city": "Singapore",     "country": "SG", "lat": 1.3521,   "lng": 103.8198},
-    {"city": "Sydney",        "country": "AU", "lat": -33.8688, "lng": 151.2093},
-    {"city": "Melbourne",     "country": "AU", "lat": -37.8136, "lng": 144.9631},
-    {"city": "São Paulo",     "country": "BR", "lat": -23.5505, "lng": -46.6333},
-    {"city": "Mexico City",   "country": "MX", "lat": 19.4326,  "lng": -99.1332},
-    {"city": "Toronto",       "country": "CA", "lat": 43.6532,  "lng": -79.3832},
-    {"city": "Dubai",         "country": "AE", "lat": 25.2048,  "lng": 55.2708},
-    {"city": "Istanbul",      "country": "TR", "lat": 41.0082,  "lng": 28.9784},
-    {"city": "Cairo",         "country": "EG", "lat": 30.0444,  "lng": 31.2357},
-    {"city": "Johannesburg",  "country": "ZA", "lat": -26.2041, "lng": 28.0473},
-    {"city": "Lagos",         "country": "NG", "lat": 6.5244,   "lng": 3.3792},
-    {"city": "Jakarta",       "country": "ID", "lat": -6.2088,  "lng": 106.8456},
-    {"city": "Mumbai",        "country": "IN", "lat": 19.0760,  "lng": 72.8777},
-    {"city": "Dhaka",         "country": "BD", "lat": 23.8103,  "lng": 90.4125},
-    {"city": "Karachi",       "country": "PK", "lat": 24.8607,  "lng": 67.0011},
-    {"city": "Tehran",        "country": "IR", "lat": 35.6892,  "lng": 51.3890},
-    {"city": "Kyiv",          "country": "UA", "lat": 50.4501,  "lng": 30.5234},
-    {"city": "Warsaw",        "country": "PL", "lat": 52.2297,  "lng": 21.0122},
-]
-
-THREAT_TYPES = ['OAS', 'ODS', 'MAV', 'WAV', 'IDS', 'VUL', 'KAS', 'BAD', 'SPAM']
-
-# SOC Core target (Bengaluru)
+# SOC Core target (Bengaluru, India)
 SOC_TARGET = {"lat": 12.9716, "lng": 77.5946}
 
 
@@ -78,7 +40,6 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# ─── Incident cooldown ────────────────────────────────────────────────────────
 COOLDOWN_SECONDS = 30
 _last_incident_time = 0
 
@@ -100,7 +61,7 @@ def _log_incident_to_db(analysis: dict, ai_summary: str):
         )
         db.add(incident)
         db.commit()
-        print(f" [DB] Logged → {analysis['status']} | {analysis['current_rps']} RPS | IPs: {analysis['attacker_ips'][:3]}")
+        print(f" [DB] Logged -> {analysis['status']} | {analysis['current_rps']} RPS | IPs: {analysis['attacker_ips'][:3]}")
     except Exception as e:
         db.rollback()
         print(f" [DB] Error: {e}")
@@ -108,80 +69,81 @@ def _log_incident_to_db(analysis: dict, ai_summary: str):
         db.close()
 
 
+def _map_threat_category(status: str, is_malicious: bool) -> str:
+    if not is_malicious:
+        return "OAS" if status == "NORMAL" else "WAV"
+    if status == "VOLUMETRIC_DDOS":
+        return "IDS"
+    if status == "BOT_ATTACK":
+        return "BAD"
+    return "ODS"
+
+
 async def rps_broadcaster_loop():
     global _last_incident_time
 
     while True:
-        metrics  = get_current_metrics()
-        total    = metrics["total_rps"]
-        ip_dist  = metrics["ip_distribution"]
-        now      = time.time()
+        metrics = get_current_metrics()
+        total   = metrics["total_rps"]
+        ip_dist = metrics["ip_distribution"]  # [(ip, rps), ...] sorted descending
+        ip_rps_map = dict(ip_dist)
+        now     = time.time()
 
         classification = classify_traffic(total, ip_dist)
         status       = classification["status"]
         is_attack    = classification["is_attack"]
         attacker_ips = classification["attacker_ips"]
+        attacker_set = set(attacker_ips)
 
-        # Geo-enrich attacker IPs → real lat/lng for globe nodes
+        # Geo-enrich the REAL active source IPs from Redis (not hardcoded cities!)
+        active_ips_to_resolve = attacker_ips if (is_attack and attacker_ips) else [ip for ip, _ in ip_dist[:12]]
         active_threat_nodes = []
         top_locations = []
         ai_insights = []
+
         if is_attack and attacker_ips:
-            active_threat_nodes = await process_threat_ips(attacker_ips)
-            top_locations = [
+            active_threat_nodes = await process_threat_ips(attacker_ips, ip_rps_map, total)
+            top_locations = list(dict.fromkeys(
                 f"{n['city']}, {n['country']}" if n.get('country') else n['city']
-                for n in active_threat_nodes if n.get('city') and n.get('city') != 'Unknown'
-            ]
+                for n in active_threat_nodes if n.get('city')
+            ))
             try:
-                top_ip  = attacker_ips[0]
+                top_ip = attacker_ips[0]
                 insight = generate_ip_confidence_score(top_ip)
                 insight["ip"] = top_ip
                 ai_insights.append(insight)
             except Exception:
                 pass
 
-        # AI explanation — generated during an attack with real source geolocation context
         ai_summary = generate_incident_explanation(
             status, total, attacker_ips, classification["legitimate_rps"], top_locations
         ) if is_attack else None
 
-        # Save to DB (with 30s cooldown to avoid spam)
         if is_attack and (now - _last_incident_time) > COOLDOWN_SECONDS:
             _last_incident_time = now
             incident_analysis = {**classification, "current_rps": total, "ai_explanation": ai_summary}
             loop = asyncio.get_event_loop()
             loop.run_in_executor(None, _log_incident_to_db, incident_analysis, ai_summary)
 
-        # ── Build global traffic events with named source cities ──────────
-        # Cap visual arcs: more during attack so the globe looks busy
-        num_events = min(max(total, 15), 35)
+        # Build global_traffic_events directly from real active IPs in ip_dist
         global_traffic_events = []
-
-        for i in range(num_events):
-            is_malicious = is_attack and random.random() < 0.55
-
-            # Pick source: prefer threat node location for malicious; named city for legit
-            if is_malicious and active_threat_nodes:
-                node = random.choice(active_threat_nodes)
-                source_city    = node.get("city", "Unknown")
-                source_country = node.get("country", "")
-                src_lat, src_lng = node["lat"], node["lng"]
-            else:
-                city = random.choice(WORLD_CITIES)
-                source_city    = city["city"]
-                source_country = city["country"]
-                src_lat, src_lng = city["lat"], city["lng"]
-
-            global_traffic_events.append({
-                "startLat":     src_lat,
-                "startLng":     src_lng,
-                "endLat":       SOC_TARGET["lat"],
-                "endLng":       SOC_TARGET["lng"],
-                "isMalicious":  is_malicious,
-                "type":         random.choice(THREAT_TYPES),
-                "sourceCity":   source_city,
-                "sourceCountry": source_country,
-            })
+        if ip_dist:
+            resolved_geos = await asyncio.gather(*(get_geolocation(ip) for ip, _ in ip_dist[:20]))
+            for (ip, ip_rps), geo in zip(ip_dist[:20], resolved_geos):
+                is_malicious = is_attack and (ip in attacker_set or status == "VOLUMETRIC_DDOS")
+                global_traffic_events.append({
+                    "ip":            ip,
+                    "rps":           ip_rps,
+                    "startLat":      geo["lat"],
+                    "startLng":      geo["lng"],
+                    "endLat":        SOC_TARGET["lat"],
+                    "endLng":        SOC_TARGET["lng"],
+                    "isMalicious":   is_malicious,
+                    "type":          _map_threat_category(status, is_malicious),
+                    "sourceCity":    geo["city"],
+                    "sourceCountry": geo.get("country", ""),
+                    "sourceCC":      geo.get("cc", ""),
+                })
 
         payload = {
             "timestamp":                time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),

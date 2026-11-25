@@ -28,10 +28,10 @@ const CyberTopBar = ({ status, isConnected, activeTab, onTabChange, onToggleInci
         zIndex: 100,
         display: 'flex',
         alignItems: 'center',
-        background: 'rgba(0, 2, 12, 0.82)',
+        background: 'rgba(5, 6, 8, 0.92)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(96, 165, 250, 0.1)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
         padding: '0 16px',
         gap: 0,
       }}

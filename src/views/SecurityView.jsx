@@ -21,7 +21,13 @@ const SecurityView = ({ incidents = [] }) => {
   const threatScore = Math.min(100, incidents.length ? 40 + (incidents.filter(i => i.severity === 'CRITICAL').length * 15) : 0);
   const threatLevel = threatScore >= 70 ? 'HIGH' : threatScore >= 40 ? 'ELEVATED' : 'GUARDED';
   const liveFirewallRules = firewallRules.map(rule => {
-    const related = incidents.filter(incident => incident.status && rule.type === 'DDoS' ? incident.status.includes('DDOS') : rule.type === 'Bot Filter' ? incident.status === 'BOT_ATTACK' : rule.type === 'Blacklist' ? incident.attacker_ips?.length : true);
+    const related = incidents.filter(incident => {
+      if (!incident.status) return false;
+      if (rule.type === 'DDoS') return incident.status.includes('DDOS');
+      if (rule.type === 'Bot Filter') return incident.status === 'BOT_ATTACK';
+      if (rule.type === 'Blacklist') return (incident.attacker_ips?.length ?? 0) > 0;
+      return true;
+    });
     const sources = related.flatMap(incident => incident.attacker_ips || []);
     return {
       ...rule,
@@ -176,10 +182,9 @@ const SecurityView = ({ incidents = [] }) => {
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
                 <th style={{ textAlign: 'left', padding: '10px 16px', color: '#94a3b8', fontWeight: 600, fontSize: 10, textTransform: 'uppercase' }}>IP Address</th>
-                <th style={{ textAlign: 'left', padding: '10px 16px', color: '#94a3b8', fontWeight: 600, fontSize: 10, textTransform: 'uppercase' }}>Origin</th>
                 <th style={{ textAlign: 'left', padding: '10px 16px', color: '#94a3b8', fontWeight: 600, fontSize: 10, textTransform: 'uppercase' }}>Reason</th>
-                <th style={{ textAlign: 'right', padding: '10px 16px', color: '#94a3b8', fontWeight: 600, fontSize: 10, textTransform: 'uppercase' }}>Attempts</th>
-                <th style={{ textAlign: 'right', padding: '10px 16px', color: '#94a3b8', fontWeight: 600, fontSize: 10, textTransform: 'uppercase' }}>Blocked At</th>
+                <th style={{ textAlign: 'right', padding: '10px 16px', color: '#94a3b8', fontWeight: 600, fontSize: 10, textTransform: 'uppercase' }}>Peak RPS</th>
+                <th style={{ textAlign: 'right', padding: '10px 16px', color: '#94a3b8', fontWeight: 600, fontSize: 10, textTransform: 'uppercase' }}>Logged At</th>
               </tr>
             </thead>
             <tbody>

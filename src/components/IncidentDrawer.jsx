@@ -31,7 +31,7 @@ const IncidentDrawer = ({ incidents = [] }) => {
         className="w-full flex items-center justify-between px-5"
         style={{
           height: 40,
-          background: 'rgba(15,23,42,0.95)',
+          background: 'rgba(10,12,16,0.96)',
           borderTop: '1px solid rgba(255,255,255,0.1)',
           borderLeft: '1px solid rgba(255,255,255,0.1)',
           borderRight: '1px solid rgba(255,255,255,0.1)',
@@ -65,7 +65,7 @@ const IncidentDrawer = ({ incidents = [] }) => {
       {/* Drawer body */}
       <div
         style={{
-          background: 'rgba(2,6,23,0.95)',
+          background: 'rgba(4,5,8,0.97)',
           borderTop: '1px solid rgba(255,255,255,0.1)',
           maxHeight: 260,
           overflowY: 'auto',
@@ -128,19 +128,19 @@ const IncidentDrawer = ({ incidents = [] }) => {
                   {inc.ai_explanation || inc.summary || 'No AI explanation available.'}
                 </p>
                 
-                {/* Cloudflare Details */}
+                {/* Real Incident Telemetry */}
                 <div 
                   className="mt-3 p-3 rounded-lg"
-                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}
+                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
                 >
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] font-bold tracking-widest text-[#f59e0b] uppercase">Cloudflare Mitigation</span>
+                    <span className="text-[10px] font-bold tracking-widest text-[#60a5fa] uppercase">Incident Telemetry</span>
                   </div>
                   <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-[10px]">
-                    <div><span className="text-slate-500">Action Taken:</span> <span className="text-emerald-400 font-mono ml-1">Managed Challenge</span></div>
-                    <div><span className="text-slate-500">Ray ID:</span> <span className="text-slate-300 font-mono ml-1">8f{inc.id.replace('INC-', '').toLowerCase()}a2b</span></div>
-                    <div><span className="text-slate-500">Rule Triggered:</span> <span className="text-slate-300 ml-1">Rate Limit + IP Rep</span></div>
-                    <div><span className="text-slate-500">AbuseIPDB Score:</span> <span className="text-red-400 font-mono ml-1">{inc.severity === 'CRITICAL' ? '88/100' : '62/100'}</span></div>
+                    <div><span className="text-slate-500">Classification:</span> <span className="text-emerald-400 font-mono ml-1">{inc.status}</span></div>
+                    <div><span className="text-slate-500">Active Sources:</span> <span className="text-slate-300 font-mono ml-1">{inc.source_count || 0} IPs</span></div>
+                    <div><span className="text-slate-500">Top Share:</span> <span className="text-slate-300 font-mono ml-1">{inc.top_source_concentration || 0}%</span></div>
+                    <div><span className="text-slate-500">Top IP:</span> <span className="text-red-400 font-mono ml-1">{inc.attacker_ips?.[0] || 'Distributed'}</span></div>
                   </div>
                 </div>
               </div>
