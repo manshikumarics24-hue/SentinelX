@@ -12,67 +12,101 @@ from app.intelligence.ai_explainer import generate_incident_explanation
 from app.intelligence.threat_intel import _prefix_geo_lookup
 from app.intelligence.traffic_classifier import classify_traffic
 
-# Create tables in Postgres automatically
-Base.metadata.create_all(bind=engine)
+# Create tables in Postgres automatically if not existing
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    print(f"⚠️ Warning during table verification: {e}")
 
 COOLDOWN_SECONDS = 30
 last_incident_time = 0
+MAX_INCIDENT_HISTORY = 2000  # Caps table at ~2 MB to stay permanently within Neon Free Tier
 
 def run_anomaly_detector():
     global last_incident_time
     print("🧠 HYBRID ANOMALY DETECTOR STARTED: Monitoring Redis counters & Entropy...")
     
     while True:
-        metrics = get_current_metrics()
-        total = metrics["total_rps"]
-        ip_dist = metrics["ip_distribution"]
-        current_time = time.time()
-        
-        # Only log incidents if out of cooldown
-        if current_time - last_incident_time > COOLDOWN_SECONDS:
-            classification = classify_traffic(total, ip_dist)
-            status = classification["status"]
-            attacker_ips = classification["attacker_ips"]
+        try:
+            metrics = get_current_metrics()
+            total = metrics["total_rps"]
+            ip_dist = metrics["ip_distribution"]
+            current_time = time.time()
+            
+            # Only log incidents if out of cooldown
+            if current_time - last_incident_time > COOLDOWN_SECONDS:
+                classification = classify_traffic(total, ip_dist)
+                status = classification["status"]
+                attacker_ips = classification["attacker_ips"]
+                        
+                if status != "NORMAL":
+                    print(f"\n🚨 ANOMALY DETECTED! Status: {status} | Peak RPS: {total} | Entropy: {classification.get('normalized_entropy')} | Threat Score: {classification.get('threat_score')}/100")
                     
-            if status != "NORMAL":
-                print(f"\n🚨 ANOMALY DETECTED! Status: {status} | Peak RPS: {total} | Entropy: {classification.get('normalized_entropy')} | Threat Score: {classification.get('threat_score')}/100")
-                
-                # Auto-quarantine confirmed malicious IPs in Redis active firewall
-                if classification.get("is_attack") and attacker_ips:
-                    for bad_ip in attacker_ips:
-                        block_ip(bad_ip, duration_seconds=300, reason=f"Automated Mitigation: {status} ({total} RPS)")
-                    print(f"🛡️ QUARANTINE ENFORCED: Blocked {len(attacker_ips)} attacker IPs in Redis firewall.")
+                    # Auto-quarantine confirmed malicious IPs in Redis active firewall
+                    if classification.get("is_attack") and attacker_ips:
+                        for bad_ip in attacker_ips:
+                            block_ip(bad_ip, duration_seconds=300, reason=f"Automated Mitigation: {status} ({total} RPS)")
+                        print(f"🛡️ QUARANTINE ENFORCED: Blocked {len(attacker_ips)} attacker IPs in Redis firewall.")
 
-                top_ips_for_loc = attacker_ips if attacker_ips else [ip for ip, _ in ip_dist[:3]]
-                top_locs = list(dict.fromkeys(
-                    f"{g['city']}, {g['country']}"
-                    for g in (_prefix_geo_lookup(ip) for ip in top_ips_for_loc[:5])
-                    if g.get("city")
-                ))
-                ai_summary = generate_incident_explanation(
-                    status, total, attacker_ips, classification.get("legitimate_rps", 0), top_locs
-                )
-                
-                db = SessionLocal()
-                new_incident = Incident(
-                    total_rps=total,
-                    status=status,
-                    attacker_ips=",".join(attacker_ips),
-                    source_count=classification.get("source_count", len(attacker_ips)),
-                    top_source_rps=classification.get("top_source_rps", 0),
-                    top_source_concentration=classification.get("top_source_concentration", 0),
-                    legitimate_rps=classification.get("legitimate_rps", 0),
-                    faulty_rps=classification.get("faulty_rps", 0),
-                    detection_reason=classification.get("detection_reason", ""),
-                    ai_explanation=ai_summary
-                )
-                db.add(new_incident)
-                db.commit()
-                db.close()
-                
-                last_incident_time = current_time
-                print("✅ INCIDENT LOGGED TO POSTGRESQL & EXPLAINED BY AI.")
-                
+                    top_ips_for_loc = attacker_ips if attacker_ips else [ip for ip, _ in ip_dist[:3]]
+                    top_locs = list(dict.fromkeys(
+                        f"{g['city']}, {g['country']}"
+                        for g in (_prefix_geo_lookup(ip) for ip in top_ips_for_loc[:5])
+                        if g.get("city")
+                    ))
+                    ai_summary = generate_incident_explanation(
+                        status, total, attacker_ips, classification.get("legitimate_rps", 0), top_locs
+                    )
+                    
+                    # ── Safe Database Logging with Auto-Pruning ──────────────────
+                    db = None
+                    try:
+                        db = SessionLocal()
+                        new_incident = Incident(
+                            total_rps=total,
+                            status=status,
+                            attacker_ips=",".join(attacker_ips),
+                            source_count=classification.get("source_count", len(attacker_ips)),
+                            top_source_rps=classification.get("top_source_rps", 0),
+                            top_source_concentration=classification.get("top_source_concentration", 0),
+                            legitimate_rps=classification.get("legitimate_rps", 0),
+                            faulty_rps=classification.get("faulty_rps", 0),
+                            detection_reason=classification.get("detection_reason", ""),
+                            ai_explanation=ai_summary
+                        )
+                        db.add(new_incident)
+                        db.commit()
+
+                        # Rolling FIFO Cleanup: prune records if count exceeds MAX_INCIDENT_HISTORY
+                        # Keeps storage permanently under ~2 MB (well under Neon's 500 MB free cap)
+                        count = db.query(Incident).count()
+                        if count > MAX_INCIDENT_HISTORY:
+                            excess = count - MAX_INCIDENT_HISTORY
+                            old_ids = [
+                                r[0] for r in db.query(Incident.id)
+                                .order_by(Incident.timestamp.asc())
+                                .limit(excess)
+                                .all()
+                            ]
+                            if old_ids:
+                                db.query(Incident).filter(Incident.id.in_(old_ids)).delete(synchronize_session=False)
+                                db.commit()
+                                print(f"🧹 PRUNED {len(old_ids)} archived incidents. Table size capped at {MAX_INCIDENT_HISTORY}.")
+
+                        print("✅ INCIDENT LOGGED TO POSTGRESQL & EXPLAINED BY AI.")
+                    except Exception as db_err:
+                        print(f"⚠️ DATABASE LOGGING WARNING (Safe Fallback): {db_err}")
+                        if db:
+                            db.rollback()
+                    finally:
+                        if db:
+                            db.close()
+                    
+                    last_incident_time = current_time
+                    
+        except Exception as loop_err:
+            print(f"⚠️ Detector loop iteration error: {loop_err}")
+
         time.sleep(1)
 
 if __name__ == "__main__":

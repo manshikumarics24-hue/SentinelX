@@ -4,12 +4,13 @@ from sqlalchemy.orm import sessionmaker
 from app.config import config
 
 # Neon Tech (and most cloud Postgres) requires SSL.
-# SQLAlchemy passes connect_args to the underlying psycopg2 driver.
-# The DATABASE_URL in .env already has ?sslmode=require so this is belt-and-suspenders.
+# pool_pre_ping: Checks connection health before using it, preventing stale connection errors
+# pool_recycle: Refreshes idle connections every 300s (matches Neon's auto-suspend lifecycle)
 engine = create_engine(
     config.DATABASE_URL,
-    pool_pre_ping=True,     # checks connection health before using it from the pool
-    pool_size=5,            # keep 5 connections warm (fine for a small SOC dashboard)
+    pool_pre_ping=True,
+    pool_recycle=300,
+    pool_size=5,
     max_overflow=10,
 )
 
