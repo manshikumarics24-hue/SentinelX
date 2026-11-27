@@ -115,3 +115,46 @@ def get_blocked_ips() -> list[dict]:
         else:
             redis_db.srem("sentinelx:blocked_ips", ip)
     return results
+
+# ── Token-Bucket Rate Limiter ─────────────────────────────────────────────────
+
+def check_token_bucket(ip_address: str, capacity: int = 40, refill_rate_per_sec: int = 5) -> bool:
+    """
+    Token-Bucket algorithm in Redis.
+    Allows normal human browsing bursts up to `capacity`, refilling at `refill_rate_per_sec`.
+    Returns True if allowed, False if the IP exceeded its token budget (Rate Limited).
+    """
+    if not ip_address:
+        return True
+    
+    current_time = time.time()
+    tokens_key = f"sentinelx:bucket:{ip_address}:tokens"
+    last_update_key = f"sentinelx:bucket:{ip_address}:ts"
+
+    pipeline = redis_db.pipeline()
+    pipeline.get(tokens_key)
+    pipeline.get(last_update_key)
+    tokens_val, last_val = pipeline.execute()
+
+    if tokens_val is None:
+        tokens = float(capacity - 1)
+        last_update = current_time
+    else:
+        tokens = float(tokens_val)
+        last_update = float(last_val or current_time)
+        elapsed = max(0.0, current_time - last_update)
+        tokens = min(float(capacity), tokens + (elapsed * refill_rate_per_sec))
+        last_update = current_time
+
+    if tokens >= 1.0:
+        tokens -= 1.0
+        allowed = True
+    else:
+        allowed = False
+
+    pipeline = redis_db.pipeline()
+    pipeline.setex(tokens_key, 60, str(round(tokens, 2)))
+    pipeline.setex(last_update_key, 60, str(round(last_update, 2)))
+    pipeline.execute()
+
+    return allowed

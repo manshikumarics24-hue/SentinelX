@@ -1,9 +1,25 @@
 import httpx
 import asyncio
 import ipaddress
+import os
 
 # In-memory geo cache (avoids repeated API calls and rate limits)
 IP_GEO_CACHE = {}
+
+# Check for local MaxMind GeoLite2 binary database if present
+_GEOIP2_READER = None
+for _candidate in [
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "GeoLite2-City.mmdb"),
+    os.path.join(os.path.dirname(__file__), "GeoLite2-City.mmdb"),
+]:
+    if os.path.exists(_candidate):
+        try:
+            import geoip2.database
+            _GEOIP2_READER = geoip2.database.Reader(_candidate)
+            print(f"[ThreatIntel] Successfully loaded offline MaxMind GeoLite2 database: {_candidate}")
+            break
+        except Exception as _e:
+            pass
 
 # Authoritative RIR / well-known IP prefix -> real geographic coordinates
 # Used when ip-api.com is unreachable (offline environment) or rate-limited (45 req/min).
@@ -130,6 +146,21 @@ def _prefix_geo_lookup(ip: str) -> dict:
             return {"city": "Bengaluru", "country": "India", "cc": "IN", "lat": 12.9716, "lng": 77.5946}
     except ValueError:
         pass
+
+    # If offline MaxMind database is present, use it for exact city-level accuracy
+    if _GEOIP2_READER:
+        try:
+            match = _GEOIP2_READER.city(ip)
+            if match.location.latitude and match.location.longitude:
+                return {
+                    "city": match.city.name or "Unknown",
+                    "country": match.country.name or "Unknown",
+                    "cc": match.country.iso_code or "UN",
+                    "lat": float(match.location.latitude),
+                    "lng": float(match.location.longitude),
+                }
+        except Exception:
+            pass
 
     for prefix, info in PREFIX_GEO_TABLE:
         if ip.startswith(prefix):

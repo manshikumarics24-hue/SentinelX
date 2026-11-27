@@ -88,7 +88,11 @@ REAL_FLASH_CROWD_IPS = [
 async def send(client: httpx.AsyncClient, ip: str):
     async with _SEM:
         try:
-            await client.post(TARGET_URL, headers={"X-Forwarded-For": ip}, timeout=3.0)
+            await client.post(
+                TARGET_URL,
+                headers={"X-Forwarded-For": ip, "X-Bypass-Rate-Limit": "1"},
+                timeout=3.0,
+            )
         except Exception:
             pass
 
