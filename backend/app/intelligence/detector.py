@@ -5,7 +5,7 @@ import os
 # Ensure the parent directory is in the python path to run this as a standalone script
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from app.ingestion.redis_client import get_current_metrics
+from app.ingestion.redis_client import get_current_metrics, block_ip
 from app.intelligence.database import SessionLocal, engine
 from app.intelligence.models import Base, Incident
 from app.intelligence.ai_explainer import generate_incident_explanation
@@ -20,7 +20,7 @@ last_incident_time = 0
 
 def run_anomaly_detector():
     global last_incident_time
-    print("🧠 HYBRID ANOMALY DETECTOR STARTED: Monitoring Redis counters...")
+    print("🧠 HYBRID ANOMALY DETECTOR STARTED: Monitoring Redis counters & Entropy...")
     
     while True:
         metrics = get_current_metrics()
@@ -35,7 +35,14 @@ def run_anomaly_detector():
             attacker_ips = classification["attacker_ips"]
                     
             if status != "NORMAL":
-                print(f"\n🚨 ANOMALY DETECTED! Status: {status} | Peak RPS: {total}. Triggering AI Explainer & Postgres Log...")
+                print(f"\n🚨 ANOMALY DETECTED! Status: {status} | Peak RPS: {total} | Entropy: {classification.get('normalized_entropy')} | Threat Score: {classification.get('threat_score')}/100")
+                
+                # Auto-quarantine confirmed malicious IPs in Redis active firewall
+                if classification.get("is_attack") and attacker_ips:
+                    for bad_ip in attacker_ips:
+                        block_ip(bad_ip, duration_seconds=300, reason=f"Automated Mitigation: {status} ({total} RPS)")
+                    print(f"🛡️ QUARANTINE ENFORCED: Blocked {len(attacker_ips)} attacker IPs in Redis firewall.")
+
                 top_ips_for_loc = attacker_ips if attacker_ips else [ip for ip, _ in ip_dist[:3]]
                 top_locs = list(dict.fromkeys(
                     f"{g['city']}, {g['country']}"

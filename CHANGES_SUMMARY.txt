@@ -38,3 +38,37 @@ SENTINELX — TODAY'S CHANGES (SIMPLE ENGLISH SUMMARY)
 5. True Black Dark Theme
 ------------------------
 - Updated src/App.jsx, src/index.css, src/components/Globe3D.jsx, src/components/Map2D.jsx, src/components/CyberTopBar.jsx, src/components/GlobeControlsOverlay.jsx, src/components/BottomThreatBar.jsx, src/components/IncidentDrawer.jsx, and the dashboard views from dark navy blue (#000010 / #020824) to crisp pure black (#000000) with dark charcoal panels.
+
+
+================================================================================
+3D GLOBE UPGRADE, ADVANCED DETECTION & ACTIVE MITIGATION FIREWALL
+================================================================================
+
+1. 3D GLOBE VISUALS & SPACE BACKGROUND OVERHAUL (src/components/Globe3D.jsx):
+   - Eliminated reliance on external unpkg CDN images that caused slow loading, visual glare, or blank spheres.
+   - Now loads sleek dark earth texture (/earth-dark.jpg) and topology relief (/earth-topology.png) locally from public/.
+   - Added rotating 3D celestial skybox (/night-sky.png) with deep-space nebula dust and distant stars.
+   - Integrated real country polygon vector outlines (/countries.geojson) directly on the 3D sphere:
+     * Glowing cyber cyan borders during normal operations.
+     * Dynamic red crimson warning borders during volumetric and bot attacks.
+   - Added in-scene 3D floating labels:
+     * "● SOC CORE (BENGALURU)" clearly visible above the primary target server.
+     * Real-time attack node labels with city and IP above active threats.
+   - Added deep cosmic radial vignette so the globe floats in space with cinematic atmosphere.
+
+2. MULTI-FACTOR THREAT ENGINE & SHANNON ENTROPY (backend/app/intelligence/traffic_classifier.py):
+   - Implemented Shannon Entropy calculation to measure source distribution randomness.
+     * Organic flash crowds have high entropy (> 0.75) spread across global residential networks.
+     * Scripted bot attacks have low entropy (< 0.45) concentrated in few machines or subnets.
+   - Added a composite Threat Scoring Engine (0 to 100 score) combining throughput volume, IP concentration ratio, and entropy anomaly.
+
+3. INLINE ACTIVE MITIGATION FIREWALL (backend/app/ingestion/redis_client.py & main.py):
+   - Upgraded SentinelX from passive observer to active inline firewall.
+   - Added Redis quarantine engine: block_ip(), unblock_ip(), is_ip_blocked(), and get_blocked_ips() with configurable TTL.
+   - Ingestion endpoint (/api/traffic) now automatically drops quarantined IPs at the gate with HTTP 403 Forbidden.
+   - Anomaly detector (detector.py) now automatically quarantines confirmed attack IPs in Redis for 300 seconds.
+
+4. INTERACTIVE SOC SECURITY & FIREWALL CONSOLE (src/views/SecurityView.jsx & SettingsView.jsx):
+   - Added live Quarantined IPs table in SecurityView with remaining TTL and one-click "Release" unblock button.
+   - Added manual IP quarantine input to immediately ban any malicious IP from the UI.
+   - Upgraded SettingsView and SecurityView to true-black cyber theme with real operator configuration.

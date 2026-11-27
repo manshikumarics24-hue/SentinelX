@@ -19,11 +19,6 @@ const safe = async (fn, fallback) => {
 };
 
 // ─── Incidents (from PostgreSQL via FastAPI) ──────────────────────────────────
-/**
- * Returns the 20 most recent logged incidents from the database.
- * Shape: { id, timestamp, peak_rps, duration_seconds, severity, status,
- *          attacker_ips[], ai_explanation, resolved }
- */
 export const getIncidents = () =>
   safe(async () => {
     const { data } = await api.get('/api/incidents');
@@ -31,11 +26,6 @@ export const getIncidents = () =>
   }, []);
 
 // ─── Stats (aggregate counters) ───────────────────────────────────────────────
-/**
- * Returns aggregate statistics about the whole incident history.
- * Shape: { total_incidents, critical_incidents, peak_rps_ever,
- *          avg_incident_rps, current_rps, active_nodes, uptime_pct }
- */
 export const getStats = () =>
   safe(async () => {
     const { data } = await api.get('/api/stats');
@@ -48,13 +38,10 @@ export const getStats = () =>
     current_rps: 0,
     active_nodes: 8,
     uptime_pct: '99.97%',
+    blocked_ips_count: 0,
   });
 
 // ─── Live metrics (HTTP fallback when WS unavailable) ────────────────────────
-/**
- * Returns the current-second Redis counters as an HTTP snapshot.
- * Shape: { current_rps, status, is_attack, attacker_ips[], ... }
- */
 export const getLiveMetrics = () =>
   safe(async () => {
     const { data } = await api.get('/api/metrics/live');
@@ -62,13 +49,37 @@ export const getLiveMetrics = () =>
   }, null);
 
 // ─── Resolve / acknowledge an incident ────────────────────────────────────────
-/**
- * Marks an incident as resolved in PostgreSQL.
- */
 export const resolveIncident = (id) =>
   safe(async () => {
     const { data } = await api.post(`/api/incidents/${id}/resolve`);
     return data;
   }, { success: false });
 
-export default { getIncidents, getStats, getLiveMetrics, resolveIncident };
+// ─── Active Mitigation (Redis Quarantine) ─────────────────────────────────────
+export const getBlockedIps = () =>
+  safe(async () => {
+    const { data } = await api.get('/api/mitigate/blocked');
+    return data;
+  }, []);
+
+export const blockIp = (ip, duration = 300, reason = 'Manual SOC Quarantine') =>
+  safe(async () => {
+    const { data } = await api.post('/api/mitigate/block', { ip, duration, reason });
+    return data;
+  }, { success: false });
+
+export const unblockIp = (ip) =>
+  safe(async () => {
+    const { data } = await api.post('/api/mitigate/unblock', { ip });
+    return data;
+  }, { success: false });
+
+export default {
+  getIncidents,
+  getStats,
+  getLiveMetrics,
+  resolveIncident,
+  getBlockedIps,
+  blockIp,
+  unblockIp,
+};

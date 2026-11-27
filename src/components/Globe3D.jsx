@@ -25,28 +25,44 @@ const Globe3D = ({ isAnomaly, globeRef, searchedCity, activeThreatNodes = [], tr
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
   const [hovered, setHovered] = useState(null);
+  const [countries, setCountries] = useState({ features: [] });
 
-  // ── Persistent arc pool — key insight for smooth animation ─────────────────
-  // Instead of replacing all arcs every second (which resets animations),
-  // we keep a rolling buffer that blends new arcs in and old ones out.
+  // ── Persistent arc pool for smooth animations ──────────────────────────────
   const arcPoolRef = useRef([]);
   const arcSeqRef  = useRef(0);
-
   const [stableArcs, setStableArcs] = useState([]);
+
+  // Fetch local country polygon outlines for high-tech cyber border rendering
+  useEffect(() => {
+    fetch('/countries.geojson')
+      .then(res => res.json())
+      .then(data => {
+        // Exclude Antarctica for a cleaner, modern command center appearance
+        const filtered = {
+          ...data,
+          features: (data.features || []).filter(
+            f => f.properties?.NAME !== 'Antarctica' && f.properties?.ADMIN !== 'Antarctica'
+          ),
+        };
+        setCountries(filtered);
+      })
+      .catch(err => {
+        console.warn('countries.geojson not loaded, fallback to bare sphere:', err);
+      });
+  }, []);
 
   // Merge incoming trafficEvents into the persistent pool every second
   useEffect(() => {
     if (!trafficEvents || trafficEvents.length === 0) return;
 
-    const MAX_POOL = 60; // never show more than 60 arcs at once
+    const MAX_POOL = 60;
     const seq = ++arcSeqRef.current;
 
-    // Tag each new event with a unique id and timestamp
     const fresh = trafficEvents.map((ev, i) => ({
       ...ev,
-      id:       `ev_${seq}_${i}`,
-      bornAt:   Date.now(),
-      ttl:      isAnomaly ? 4000 : 7000, // malicious arcs linger 4s, normal 7s
+      id:     `ev_${seq}_${i}`,
+      bornAt: Date.now(),
+      ttl:    isAnomaly ? 4500 : 7000,
     }));
 
     arcPoolRef.current = [
@@ -57,11 +73,14 @@ const Globe3D = ({ isAnomaly, globeRef, searchedCity, activeThreatNodes = [], tr
     setStableArcs([...arcPoolRef.current]);
   }, [trafficEvents, isAnomaly]);
 
-  // Responsive globe size
+  // Responsive globe resizing
   useEffect(() => {
     const obs = new ResizeObserver(entries => {
       for (const entry of entries) {
-        setDimensions({ width: Math.floor(entry.contentRect.width), height: Math.floor(entry.contentRect.height) });
+        setDimensions({
+          width: Math.floor(entry.contentRect.width),
+          height: Math.floor(entry.contentRect.height),
+        });
       }
     });
     if (containerRef.current) obs.observe(containerRef.current);
@@ -71,106 +90,112 @@ const Globe3D = ({ isAnomaly, globeRef, searchedCity, activeThreatNodes = [], tr
   // Initial camera setup
   useEffect(() => {
     if (!globeRef.current) return;
-    globeRef.current.pointOfView({ lat: 18, lng: 30, altitude: 1.9 }, 0);
+    globeRef.current.pointOfView({ lat: 18, lng: 70, altitude: 2.1 }, 0);
     const ctrl = globeRef.current.controls();
     ctrl.autoRotate      = true;
-    ctrl.autoRotateSpeed = 0.22;
+    ctrl.autoRotateSpeed = 0.25;
     ctrl.enableZoom      = true;
     ctrl.enablePan       = true;
     ctrl.enableRotate    = true;
-  }, []);
+  }, [globeRef]);
 
-  // Rotation speed reacts to attack state
+  // Dynamic rotation speed during attacks
   useEffect(() => {
     if (globeRef.current) {
-      globeRef.current.controls().autoRotateSpeed = isAnomaly ? 0.65 : 0.22;
+      globeRef.current.controls().autoRotateSpeed = isAnomaly ? 0.60 : 0.25;
     }
-  }, [isAnomaly]);
+  }, [isAnomaly, globeRef]);
 
-  // Camera fly-to when a city is searched
+  // Camera fly-to when searching for a city
   useEffect(() => {
     if (searchedCity && globeRef.current) {
       const q = searchedCity.toLowerCase();
       const match = activeThreatNodes.find(n =>
-        n.name?.toLowerCase().includes(q) || n.city?.toLowerCase().includes(q),
+        n.name?.toLowerCase().includes(q) || n.city?.toLowerCase().includes(q)
       );
       globeRef.current.pointOfView(
         match
           ? { lat: match.lat, lng: match.lng, altitude: 1.5 }
-          : { lat: (Math.random() - 0.5) * 100, lng: (Math.random() - 0.5) * 180, altitude: 1.8 },
-        1200,
+          : { lat: 20, lng: 77, altitude: 1.9 },
+        1200
       );
     }
-  }, [searchedCity]);
+  }, [searchedCity, activeThreatNodes, globeRef]);
 
-  // ── Arc data ──────────────────────────────────────────────────────────────
+  // ── 1. Arcs Data ───────────────────────────────────────────────────────────
   const arcsData = useMemo(() => {
     const arcs = [];
 
-    // 1. Ambient background routes — always present, thin blue
+    // Ambient background routes — subtle cyber connections
     AMBIENT_ROUTES.forEach((r, i) => {
       arcs.push({
         id:       `ambient_${i}`,
         startLat: r.s[0], startLng: r.s[1],
         endLat:   r.e[0], endLng:   r.e[1],
         label:    r.label,
-        color:    ['rgba(59,130,246,0.15)', 'rgba(99,179,237,0.35)', 'rgba(59,130,246,0.15)'],
-        stroke:   0.4,
-        altitude: 0.04 + (i % 5) * 0.04,
-        dash:     0.25, gap: 0.75,
+        color:    ['rgba(37,99,235,0.20)', 'rgba(56,189,248,0.45)', 'rgba(37,99,235,0.20)'],
+        stroke:   0.45,
+        altitude: 0.05 + (i % 5) * 0.03,
+        dash:     0.25,
+        gap:      0.75,
       });
     });
 
-    // 2. Live WebSocket traffic events from stable pool
+    // Live WebSocket traffic events
     stableArcs.forEach(ev => {
       const mal = ev.isMalicious;
       const label = ev.sourceCity
-        ? `${ev.sourceCity}${ev.sourceCountry ? ', ' + ev.sourceCountry : ''} → SOC`
+        ? `${ev.sourceCity}${ev.sourceCountry ? ', ' + ev.sourceCountry : ''} → SOC Core`
         : null;
       arcs.push({
         id:       ev.id,
         startLat: ev.startLat, startLng: ev.startLng,
         endLat:   ev.endLat,   endLng:   ev.endLng,
-        label:    label,
-        color:    mal
-          ? ['rgba(239,68,68,0.7)',  'rgba(255,150,150,0.95)', 'rgba(239,68,68,0.7)']
-          : ['rgba(52,211,153,0.4)', 'rgba(134,239,172,0.8)',  'rgba(52,211,153,0.4)'],
-        stroke:   mal ? 1.6 : 0.7,
-        altitude: mal ? 0.15 : 0.07,
-        dash:     mal ? 0.4  : 0.25,
-        gap:      mal ? 0.45 : 0.65,
+        label,
+        color: mal
+          ? ['rgba(239,68,68,0.85)', 'rgba(255,200,200,0.98)', 'rgba(239,68,68,0.85)']
+          : ['rgba(52,211,153,0.45)', 'rgba(167,243,208,0.85)', 'rgba(52,211,153,0.45)'],
+        stroke:   mal ? 1.8 : 0.75,
+        altitude: mal ? 0.16 : 0.08,
+        dash:     mal ? 0.45 : 0.25,
+        gap:      mal ? 0.35 : 0.65,
       });
     });
 
-    // 3. Active threat node → SOC arcs (bold attack vectors)
+    // Active threat node attack vectors
     activeThreatNodes.forEach(node => {
       const label = node.city
-        ? `⚠ ${node.city}, ${node.country || ''} → SOC Bengaluru`
-        : `⚠ ${node.ip} → SOC`;
+        ? `⚠ ATTACK VECTOR: ${node.city}, ${node.country || ''} → SOC Bengaluru`
+        : `⚠ ATTACK VECTOR: ${node.ip} → SOC`;
       arcs.push({
         id:       `threat_${node.id}`,
         startLat: node.lat, startLng: node.lng,
         endLat:   TARGET_SERVER.lat, endLng: TARGET_SERVER.lng,
         label,
-        color:    [node.color, 'rgba(255,255,255,0.95)', node.color],
-        stroke:   isAnomaly ? 2.2 : 1.4,
-        altitude: 0.22 + Math.random() * 0.15,
-        dash:     0.4, gap: 0.45,
+        color:    [node.color || '#ef4444', '#ffffff', node.color || '#ef4444'],
+        stroke:   isAnomaly ? 2.5 : 1.5,
+        altitude: 0.22 + Math.random() * 0.12,
+        dash:     0.5,
+        gap:      0.4,
       });
     });
 
-    // 4. Cross-connections between attack nodes (looks like a botnet mesh)
+    // Botnet mesh connections between active attack nodes
     if (isAnomaly && activeThreatNodes.length >= 2) {
       [[0, 1], [1, 2], [0, 2]].forEach(([a, b], i) => {
-        const n1 = activeThreatNodes[a], n2 = activeThreatNodes[b];
+        const n1 = activeThreatNodes[a];
+        const n2 = activeThreatNodes[b];
         if (n1 && n2) {
           arcs.push({
             id:       `cross_${i}`,
             startLat: n1.lat, startLng: n1.lng,
             endLat:   n2.lat, endLng:   n2.lng,
-            label:    `Botnet mesh: ${n1.city || n1.ip} ↔ ${n2.city || n2.ip}`,
-            color:    ['rgba(167,139,250,0.55)', 'rgba(196,181,253,0.75)', 'rgba(167,139,250,0.55)'],
-            stroke:   0.9, altitude: 0.10 + i * 0.04, dash: 0.3, gap: 0.6,
+            label:    `Botnet Mesh: ${n1.city || n1.ip} ↔ ${n2.city || n2.ip}`,
+            color:    ['rgba(168,85,247,0.65)', 'rgba(216,180,254,0.9)', 'rgba(168,85,247,0.65)'],
+            stroke:   1.0,
+            altitude: 0.12 + i * 0.03,
+            dash:     0.35,
+            gap:      0.55,
           });
         }
       });
@@ -179,71 +204,134 @@ const Globe3D = ({ isAnomaly, globeRef, searchedCity, activeThreatNodes = [], tr
     return arcs;
   }, [stableArcs, activeThreatNodes, isAnomaly]);
 
-  // ── Rings ─────────────────────────────────────────────────────────────────
+  // ── 2. Radar Pulse Rings ───────────────────────────────────────────────────
   const ringsData = useMemo(() => {
     const rings = [{
-      lat: TARGET_SERVER.lat, lng: TARGET_SERVER.lng,
-      maxRadius:        isAnomaly ? 20 : 5,
-      propagationSpeed: isAnomaly ? 5  : 1.5,
-      repeatPeriod:     isAnomaly ? 500 : 2500,
+      lat: TARGET_SERVER.lat,
+      lng: TARGET_SERVER.lng,
+      maxRadius:        isAnomaly ? 18 : 6,
+      propagationSpeed: isAnomaly ? 4.5 : 1.8,
+      repeatPeriod:     isAnomaly ? 600 : 2200,
       color: t => isAnomaly
-        ? `rgba(239,68,68,${(1 - t) * 0.9})`
-        : `rgba(59,130,246,${(1 - t) * 0.5})`,
+        ? `rgba(239, 68, 68, ${(1 - t) * 0.95})`
+        : `rgba(56, 189, 248, ${(1 - t) * 0.65})`,
     }];
+
     if (isAnomaly) {
       activeThreatNodes.forEach(n => rings.push({
-        lat: n.lat, lng: n.lng,
-        maxRadius: 14, propagationSpeed: 3.5, repeatPeriod: 900,
-        color: t => `rgba(239,68,68,${(1 - t) * 0.6})`,
+        lat: n.lat,
+        lng: n.lng,
+        maxRadius:        13,
+        propagationSpeed: 3.2,
+        repeatPeriod:     900,
+        color: t => `rgba(239, 68, 68, ${(1 - t) * 0.75})`,
       }));
     }
     return rings;
   }, [isAnomaly, activeThreatNodes]);
 
-  // ── Points ────────────────────────────────────────────────────────────────
+  // ── 3. High-visibility Points ──────────────────────────────────────────────
   const pointsData = useMemo(() => {
     const pts = [{
-      lat: TARGET_SERVER.lat, lng: TARGET_SERVER.lng,
-      size: isAnomaly ? 1.2 : 0.8,
-      color: isAnomaly ? '#ef4444' : '#3b82f6',
-      label: `SOC — ${TARGET_SERVER.name}`,
-      altitude: 0.06,
+      lat: TARGET_SERVER.lat,
+      lng: TARGET_SERVER.lng,
+      size: isAnomaly ? 1.4 : 0.95,
+      color: isAnomaly ? '#ef4444' : '#38bdf8',
+      label: `SOC CORE — ${TARGET_SERVER.name} (${TARGET_SERVER.ip})`,
+      altitude: 0.05,
     }];
+
     activeThreatNodes.forEach(n => pts.push({
-      lat: n.lat, lng: n.lng,
-      size: isAnomaly ? 0.9 : 0.45,
-      color: isAnomaly ? n.color : `${n.color}77`,
-      label: n.city ? `${n.city}, ${n.country || ''} — ${n.ip}` : n.ip,
-      altitude: isAnomaly ? 0.10 : 0.02,
+      lat: n.lat,
+      lng: n.lng,
+      size: isAnomaly ? 1.1 : 0.6,
+      color: isAnomaly ? (n.color || '#ef4444') : `${n.color || '#ef4444'}88`,
+      label: n.city ? `⚠ ${n.city}, ${n.country || ''} — ${n.ip}` : `⚠ ${n.ip}`,
+      altitude: isAnomaly ? 0.08 : 0.03,
     }));
+
     return pts;
+  }, [isAnomaly, activeThreatNodes]);
+
+  // ── 4. Floating 3D Labels directly on Globe ───────────────────────────────
+  const labelsData = useMemo(() => {
+    const labels = [
+      {
+        lat: TARGET_SERVER.lat,
+        lng: TARGET_SERVER.lng,
+        text: '● SOC CORE (BENGALURU)',
+        color: isAnomaly ? '#ef4444' : '#38bdf8',
+        size: 0.9,
+        altitude: 0.08,
+      },
+    ];
+
+    activeThreatNodes.slice(0, 5).forEach(node => {
+      labels.push({
+        lat: node.lat,
+        lng: node.lng,
+        text: node.city ? `⚠ ${node.city} [${node.ip}]` : `⚠ ${node.ip}`,
+        color: '#f87171',
+        size: 0.75,
+        altitude: 0.09,
+      });
+    });
+
+    return labels;
   }, [isAnomaly, activeThreatNodes]);
 
   const handlePointHover = useCallback(pt => {
     setHovered(pt?.label ?? null);
     if (globeRef.current) globeRef.current.controls().autoRotate = !pt;
-  }, []);
+  }, [globeRef]);
 
   return (
     <div
       ref={containerRef}
       id="globe-canvas-wrapper"
       style={{
-        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0,
-        background: 'radial-gradient(ellipse at center, #010412 0%, #000000 100%)',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 0,
+        background: 'radial-gradient(circle at 50% 50%, #030713 0%, #010307 65%, #000000 100%)',
+        overflow: 'hidden',
       }}
     >
+      {/* Subtle futuristic deep-space radial vignette */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          background: 'radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.75) 100%)',
+          zIndex: 1,
+        }}
+      />
+
       <Globe
         ref={globeRef}
         width={dimensions.width}
         height={dimensions.height}
-        globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
-        bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
-        backgroundImageUrl={null}
+        /* ── Local Assets for 100% offline reliability & instant rendering ── */
+        globeImageUrl="/earth-dark.jpg"
+        bumpImageUrl="/earth-topology.png"
+        backgroundImageUrl="/night-sky.png"
         backgroundColor="rgba(0,0,0,0)"
-        atmosphereColor={isAnomaly ? '#8b0000' : '#1a4a8a'}
-        atmosphereAltitude={isAnomaly ? 0.22 : 0.13}
-        /* ── Arcs ── */
+        atmosphereColor={isAnomaly ? '#ef4444' : '#38bdf8'}
+        atmosphereAltitude={isAnomaly ? 0.25 : 0.16}
+
+        /* ── Country Polygon Outlines (High-Tech Vector SOC Grid) ── */
+        polygonsData={countries.features}
+        polygonGeoJsonGeometry={d => d.geometry}
+        polygonCapColor={() => isAnomaly ? 'rgba(38, 14, 20, 0.45)' : 'rgba(10, 24, 42, 0.42)'}
+        polygonSideColor={() => 'rgba(0, 0, 0, 0.25)'}
+        polygonStrokeColor={() => isAnomaly ? 'rgba(239, 68, 68, 0.38)' : 'rgba(56, 189, 248, 0.30)'}
+        polygonAltitude={0.006}
+
+        /* ── Arcs (Attack & Normal Traffic Streams) ── */
         arcsData={arcsData}
         arcStartLat={d => d.startLat}
         arcStartLng={d => d.startLng}
@@ -254,15 +342,17 @@ const Globe3D = ({ isAnomaly, globeRef, searchedCity, activeThreatNodes = [], tr
         arcAltitude={d => d.altitude}
         arcDashLength={d => d.dash ?? 0.35}
         arcDashGap={d => d.gap ?? 0.55}
-        arcDashAnimateTime={isAnomaly ? 900 : 3500}
+        arcDashAnimateTime={isAnomaly ? 1100 : 3200}
         arcLabel={d => d.label ?? ''}
-        /* ── Rings ── */
+
+        /* ── Radar Pulse Rings ── */
         ringsData={ringsData}
         ringColor={d => d.color}
         ringMaxRadius={d => d.maxRadius}
         ringPropagationSpeed={d => d.propagationSpeed}
         ringRepeatPeriod={d => d.repeatPeriod}
-        /* ── Points ── */
+
+        /* ── Points (SOC & Attacker Nodes) ── */
         pointsData={pointsData}
         pointLat={d => d.lat}
         pointLng={d => d.lng}
@@ -271,11 +361,22 @@ const Globe3D = ({ isAnomaly, globeRef, searchedCity, activeThreatNodes = [], tr
         pointAltitude={d => d.altitude}
         pointLabel={d => d.label}
         onPointHover={handlePointHover}
+
+        /* ── 3D In-Scene World Labels ── */
+        labelsData={labelsData}
+        labelLat={d => d.lat}
+        labelLng={d => d.lng}
+        labelText={d => d.text}
+        labelSize={d => d.size}
+        labelColor={d => d.color}
+        labelAltitude={d => d.altitude}
+        labelResolution={2}
+
         rendererConfig={{ antialias: true, alpha: true }}
         animateIn
       />
 
-      {/* Bottom gradient — blends globe into threat bar */}
+      {/* Bottom gradient — smoothly blends globe into the threat bar */}
       <div className="globe-fade-bottom" />
 
       {/* Hovered arc / point tooltip */}
@@ -283,27 +384,28 @@ const Globe3D = ({ isAnomaly, globeRef, searchedCity, activeThreatNodes = [], tr
         <div
           style={{
             position: 'absolute',
-            top: 64,
+            top: 72,
             left: '50%',
             transform: 'translateX(-50%)',
-            background: 'rgba(0,2,12,0.9)',
-            border: '1px solid rgba(96,165,250,0.25)',
-            borderRadius: 5,
-            padding: '4px 12px',
-            fontSize: 10,
+            background: 'rgba(5, 8, 16, 0.94)',
+            border: '1px solid rgba(56, 189, 248, 0.35)',
+            borderRadius: 6,
+            padding: '6px 14px',
+            fontSize: 11,
             fontWeight: 600,
-            color: '#e2eaf4',
+            color: '#f1f5f9',
             letterSpacing: '0.04em',
-            backdropFilter: 'blur(10px)',
+            backdropFilter: 'blur(12px)',
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
+            gap: 8,
             zIndex: 10,
             whiteSpace: 'nowrap',
             pointerEvents: 'none',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.8), 0 0 12px rgba(56, 189, 248, 0.2)',
           }}
         >
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#60a5fa', flexShrink: 0 }} />
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: isAnomaly ? '#ef4444' : '#38bdf8', flexShrink: 0, animation: 'ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite' }} />
           {hovered}
         </div>
       )}

@@ -1,9 +1,15 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Body
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.intelligence.database import get_db
 from app.intelligence.models import Incident
-from app.ingestion.redis_client import get_current_metrics
+from app.ingestion.redis_client import (
+    get_current_metrics,
+    block_ip,
+    unblock_ip,
+    get_blocked_ips,
+    is_ip_blocked
+)
 from app.intelligence.traffic_classifier import classify_traffic
 import time
 
@@ -58,7 +64,7 @@ def get_incidents(db: Session = Depends(get_db)):
             "id": str(inc.id),
             "timestamp": inc.timestamp.isoformat() + "Z",
             "peak_rps": inc.total_rps,
-            "duration_seconds": 0,          # future improvement: track end time
+            "duration_seconds": 0,
             "severity": severity,
             "status": inc.status,
             "attacker_ips": attacker_ips_list,
@@ -76,8 +82,7 @@ def get_incidents(db: Session = Depends(get_db)):
 
 
 # ─── /api/stats ──────────────────────────────────────────────────────────────
-# Returns aggregate statistics about the entire incident history.
-# Used by: DashboardView summary cards (Blocked Threats, Total Requests, etc.)
+# Returns aggregate statistics about the entire incident history + active mitigation.
 @router.get("/api/stats")
 def get_stats(db: Session = Depends(get_db)):
     total_incidents = db.query(func.count(Incident.id)).scalar() or 0
@@ -90,8 +95,8 @@ def get_stats(db: Session = Depends(get_db)):
     max_rps = db.query(func.max(Incident.total_rps)).scalar() or 0
     avg_rps = db.query(func.avg(Incident.total_rps)).scalar() or 0
 
-    # Current live RPS and active source IPs from Redis (real-time)
     metrics = get_current_metrics()
+    blocked = get_blocked_ips()
 
     return {
         "total_incidents": total_incidents,
@@ -100,12 +105,12 @@ def get_stats(db: Session = Depends(get_db)):
         "avg_incident_rps": round(float(avg_rps), 1),
         "current_rps": metrics["total_rps"],
         "active_nodes": len(metrics["ip_distribution"]),
+        "blocked_ips_count": len(blocked),
     }
 
 
 # ─── /api/metrics/live ───────────────────────────────────────────────────────
 # Returns the CURRENT second's Redis counters directly.
-# Used as an HTTP fallback when WebSocket is not available.
 @router.get("/api/metrics/live")
 def get_live_metrics():
     metrics = get_current_metrics()
@@ -131,3 +136,39 @@ def resolve_incident(incident_id: int, db: Session = Depends(get_db)):
     incident.resolved = True
     db.commit()
     return {"success": True, "id": incident_id}
+
+
+# ─── Active Mitigation Endpoints ──────────────────────────────────────────────
+
+@router.get("/api/mitigate/blocked")
+def get_all_blocked_ips():
+    """
+    Returns list of all IPs currently quarantined in the Redis firewall blacklist.
+    """
+    return get_blocked_ips()
+
+
+@router.post("/api/mitigate/block")
+def block_ip_endpoint(payload: dict = Body(...)):
+    """
+    Quarantines an IP in Redis firewall for a given duration (default: 300s).
+    """
+    ip = payload.get("ip")
+    duration = int(payload.get("duration", 300))
+    reason = payload.get("reason", "Manual SOC Quarantine")
+    if not ip:
+        return {"error": "IP is required"}
+    success = block_ip(ip, duration, reason)
+    return {"success": success, "ip": ip, "duration": duration, "reason": reason}
+
+
+@router.post("/api/mitigate/unblock")
+def unblock_ip_endpoint(payload: dict = Body(...)):
+    """
+    Removes an IP from the quarantine blacklist.
+    """
+    ip = payload.get("ip")
+    if not ip:
+        return {"error": "IP is required"}
+    success = unblock_ip(ip)
+    return {"success": success, "ip": ip}
